@@ -149,6 +149,18 @@ encoded paths. Fix the config, not the script.
 | `BRIEF_GATE_POLL` / `BRIEF_GATE_MAX` | shorten the network wait |
 | `BRIEF_TOKEN_POLL` | shorten the credential re-check interval |
 | `BRIEF_WEBHOOK_FILE` | point the expiry alert somewhere harmless |
+| `BRIEF_QUIET=1` | suppress the terminal mirror, log to file only |
+
+### Where the output goes
+
+`run.sh` logs everything to `logs/<today>.log`, and **also mirrors it to your
+terminal when it detects one** — so a hand-run shows its work while a `launchd`
+run (no tty) stays silent as before. `BRIEF_QUIET=1` forces file-only. To watch a
+run you did not start interactively:
+
+```bash
+tail -f ~/daily-brief/logs/$(date +%F).log
+```
 
 `BRIEF_DRY_RUN=1 bash run.sh` is the fastest way to answer "is my setup sane".
 `bash collect.sh` alone is safer still: no network, no LLM, no delivery.

@@ -28,6 +28,10 @@ Two layers, deliberately split:
 Nothing depends on the schedule existing. A brief you never schedule is a fully
 working brief.
 
+`run.sh` writes everything to `$BASE/logs/<today>.log` **and** mirrors it to your
+terminal when there is one, so a hand-run shows its work while a scheduled run stays
+silent. To follow a run you did not start: `tail -f $BASE/logs/$(date +%F).log`.
+
 ## Know your platform before you promise anything
 
 Read `reference/PLATFORMS.md` if anything below is unavailable. The short version:

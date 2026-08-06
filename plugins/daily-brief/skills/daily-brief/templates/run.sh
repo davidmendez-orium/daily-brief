@@ -46,9 +46,17 @@ ALERT_STATE="$BASE/logs/.token-alert-fingerprint"
 NODE_BIN="$(/bin/ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1 || true)"
 export PATH="${NODE_BIN:+$NODE_BIN:}$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-exec >>"$LOG" 2>&1
+# Always log to the file; also mirror to the terminal when there IS one. A launchd
+# run has no tty and logs silently as before; a hand-run shows its work instead of
+# looking like it did nothing. BRIEF_QUIET=1 forces file-only.
+if [ -t 1 ] && [ -z "${BRIEF_QUIET:-}" ]; then
+  exec > >(tee -a "$LOG") 2>&1
+else
+  exec >>"$LOG" 2>&1
+fi
 
 echo "===== $(date '+%F %T %Z') daily-brief START ====="
+echo "  log: $LOG"
 
 csv_row() {
   if [ ! -f "$COST_CSV" ]; then
