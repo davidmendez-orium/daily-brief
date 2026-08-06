@@ -69,6 +69,7 @@ Adding a channel means writing a new card and adding it to `KNOWN_CHANNELS` in
 | Change repos, name, time, sources | **Reconfigure** |
 | "Did it run?" | **Status** |
 | It did not arrive / arrived wrong | **Diagnose** |
+| "Do I have the right MCPs?" | **Check dependencies** |
 
 If `$BASE/config.env` does not exist they are not set up — go to **Setup** first,
 whatever they asked for. `$SKILL` is this skill's directory; `$BASE` is
@@ -98,6 +99,67 @@ can, and don't re-query to confirm something a payload already told you.
 Report per channel, exactly. If a channel fails, say which and why. Never report a
 delivery that did not happen.
 
+## Check dependencies
+
+The brief is only as good as the MCP servers behind it. A config can validate
+perfectly and still fail at delivery because a connector was never authenticated.
+Check before promising anything — at setup, when delivery changes, and whenever a
+brief fails for a reason that smells like a missing tool.
+
+**Two checks, and they see different things.**
+
+1. `bash $SKILL/check-deps.sh` — maps the config's channels and sources to the
+   servers they need and reports each as connected / needs-auth / missing, with
+   the exact command to fix it. Exit `0` satisfied, `3` unmet, `4` cannot tell.
+   It asks the local agent CLI, so it is authoritative for Claude Code and
+   **blind** to connectors enabled in a client UI.
+2. **Your own tool list** — the authoritative check, and the only one available in
+   Cowork or when `check-deps.sh` exits `4`. Confirm you can actually see a send
+   tool for each delivery channel and a query tool for each enabled source.
+
+Where they disagree, trust your tool list. Say which check you used.
+
+### Then offer to fix them — don't just fix them
+
+Present what is unmet and let them choose. Some of this touches their MCP config,
+which is theirs, not yours.
+
+**What you can do for them**, with their agreement:
+
+- **Copy a server they already have elsewhere.** If the server is defined in
+  `BRIEF_MCP_SOURCE_DIR/.mcp.json` but not registered, `claude mcp add-json <name>
+  '<json>'` registers it. Non-interactive, reversible with `claude mcp remove`.
+  Show the name and where it came from before running it.
+- **Switch off what they don't want.** A missing source is often not worth
+  installing — flipping `BRIEF_SOURCE_GCHAT=false` is a legitimate fix, and
+  cheaper than adding a connector they'll never otherwise use. Offer it.
+
+**What only they can do:**
+
+- **Authenticate a connector** — `claude mcp login "<name>"` opens a browser and
+  cannot run unattended. Ask them to run it themselves: suggest they type
+  `! claude mcp login "<name>"`.
+- **Add a connector in the client UI** — Cowork connectors, and anything not
+  already defined in a config you can read.
+
+Never invent an install command for a server you cannot see the definition of.
+Guessing a package name or URL produces a config that fails later and looks like
+it was set up correctly.
+
+### Close with what's left
+
+Whatever they chose, end with a short, literal next-steps list — the exact
+commands for anything they opted to do themselves, and what will happen if they
+don't:
+
+> **Before your first brief:**
+> 1. `! claude mcp login "claude.ai Slack"` — Slack delivery fails without it
+> 2. Re-check: `bash $SKILL/install.sh --check-deps`
+>
+> Google Chat and email are ready now; you can run a brief on those today.
+
+If everything is satisfied, say so in one line and move on — no ceremony.
+
 ## Setup
 
 The installer does the file work; your job is `config.env`, the only part it
@@ -123,12 +185,15 @@ cannot guess.
      their MCP config lives in a repo. Leave empty otherwise; the preflight is
      skipped and the agent's own config is used.
 
-3. **Install for real:** `bash $SKILL/install.sh`. Validates and smoke-tests the
-   collector. **Schedules nothing.**
+3. **Install for real:** `bash $SKILL/install.sh`. Validates the config,
+   smoke-tests the collector, and runs the dependency check. **Schedules nothing.**
 
-4. **Offer a real brief** via **Brief me now** — the cheapest proof it works.
+4. **Resolve any unmet dependencies** — see **Check dependencies**. The installer
+   reports them but never blocks on them, so this is your job, not its.
 
-5. **Then offer the schedule as a question, not a default.** "Want this every
+5. **Offer a real brief** via **Brief me now** — the cheapest proof it works.
+
+6. **Then offer the schedule as a question, not a default.** "Want this every
    weekday morning at 07:45, or run it when you feel like it?" Mention that an
    unattended run costs about a dollar a day and can fail unseen.
 
@@ -151,6 +216,9 @@ private brief into the wrong room. If you cannot determine it, say so.
 
 Several channels at once is supported — space-separate them. They all get the same
 brief, and one failing does not stop the others.
+
+**After changing a channel, re-run the dependency check** — a new channel usually
+means a new server, and finding that out at delivery time is the expensive way.
 
 ## Schedule / Unschedule
 

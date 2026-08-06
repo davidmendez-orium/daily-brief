@@ -9,6 +9,7 @@
 #   bash install.sh --schedule    # ...and load the weekday launchd job (macOS)
 #   bash install.sh --unschedule  # drop the cron, keep everything else
 #   bash install.sh --status      # what is installed, scheduled or not, last runs
+#   bash install.sh --check-deps  # just the MCP dependency report
 #   bash install.sh --uninstall   # remove the cron and say where the files are
 #
 # Honours BRIEF_BASE (default ~/daily-brief).
@@ -24,12 +25,18 @@ KNOWN_CHANNELS="gchat slack email"
 MODE=install
 case "${1:-}" in
   --schedule)        MODE=schedule ;;
+  --check-deps)      MODE=checkdeps ;;
   --unschedule)      MODE=unschedule ;;
   --uninstall)       MODE=uninstall ;;
   --status)          MODE=status ;;
   --no-schedule|"")  ;;   # --no-schedule is the default now; accepted for compat
   *) echo "unknown option: $1" >&2; exit 2 ;;
 esac
+
+# ---- dependency check only ---------------------------------------------------
+if [ "$MODE" = checkdeps ]; then
+  exec bash "$SKILL_DIR/check-deps.sh"
+fi
 
 # ---- status ------------------------------------------------------------------
 if [ "$MODE" = status ]; then
@@ -174,10 +181,26 @@ echo "config.env validated (delivery: ${BRIEF_DELIVERY})"
 OUT="$(BRIEF_BASE="$BASE" bash "$BASE/collect.sh")"
 echo "collector wrote $OUT ($(jq -r '[.git[]?|length]|add // 0' "$OUT") commit(s) in window)"
 
+# ---- MCP dependencies --------------------------------------------------------
+# Deliberately NON-fatal. A config can be perfectly correct while a connector is
+# merely unauthenticated, and blocking the install would leave the person with
+# nothing to re-run once they fix it. Warn loudly, carry on, and repeat it in the
+# closing summary so it cannot scroll away unnoticed.
+echo
+DEPS_RC=0
+BRIEF_BASE="$BASE" bash "$SKILL_DIR/check-deps.sh" || DEPS_RC=$?
+
 # ---- default stop: installed, usable, unscheduled ----------------------------
 if [ "$MODE" = install ]; then
   echo
-  echo "Installed and ready. Nothing is scheduled — the brief runs when you ask."
+  case "$DEPS_RC" in
+    0) echo "Installed and ready. Nothing is scheduled — the brief runs when you ask." ;;
+    3) echo "Installed, but NOT yet ready: the MCP dependencies above are unmet."
+       echo "Resolve them (or switch those sources off in config.env), then re-check with:"
+       echo "  bash $SKILL_DIR/install.sh --check-deps" ;;
+    *) echo "Installed. MCP dependencies could not be checked from here — the agent"
+       echo "running the skill will verify them in-session before the first brief." ;;
+  esac
   echo
   echo "  in an agent session   /daily-brief  (\"brief me\") — cheapest, no nested CLI"
   echo "  from a terminal       bash $BASE/run.sh"

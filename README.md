@@ -100,6 +100,31 @@ With no local half the brief runs from cloud sources and **says so** — it neve
 implies a quiet day when the truth is that nobody could look. Details in
 `skills/daily-brief/reference/PLATFORMS.md`.
 
+## Dependency check
+
+The brief needs an MCP server behind each channel it delivers to and each source it
+scans. `install.sh` works out which ones this config needs and reports them:
+
+```
+MCP dependencies for delivery=[gchat slack email]:
+  [  ok  ] chat       chat                        deliver to Google Chat; scan mentions
+  [ auth ] slack      claude.ai Slack             deliver to Slack
+  [MISSING] github    -                           find your PRs and reviews
+
+NEXT STEPS — the brief will fail on these until they are resolved:
+  slack — 'claude.ai Slack' is configured but not usable. Authenticate it:
+      claude mcp login "claude.ai Slack"
+```
+
+It is **non-fatal by design**: a config can be perfectly correct while a connector
+is merely unauthenticated, and blocking would leave you with nothing to re-run once
+you fix it. Re-check any time with `install.sh --check-deps`, or
+`check-deps.sh --porcelain` for machine-readable output.
+
+The skill goes further in a session — it can see its own tool list (the only check
+that works in Cowork), offers to register a server you already have defined
+elsewhere, and prints exactly what is left for you to do by hand.
+
 ## Requirements
 
 - `jq`, `git`, `curl`
@@ -116,6 +141,7 @@ plugins/daily-brief/
 └── skills/daily-brief/
     ├── SKILL.md                     routing + the interactive path
     ├── install.sh                   idempotent installer, --schedule/--status/…
+    ├── check-deps.sh                MCP dependency report (also run by install)
     ├── templates/                   collect.sh, run.sh, brief-prompt.md, config
     ├── delivery/                    gchat.md, slack.md, email.md
     └── reference/                   PLATFORMS.md, TROUBLESHOOTING.md

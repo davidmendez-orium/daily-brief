@@ -93,6 +93,26 @@ A genuinely absent local half must show the line `_Local git/session data
 unavailable — cloud sources only._` If *Shipped* is empty and that line is missing,
 the brief is lying about a quiet day — that is a bug in the run, not in the config.
 
+## 4b. A tool the brief needed was not there
+
+**Symptom.** A section is empty, or a channel reports `FAILED`, and the underlying
+error is a missing or unauthorized tool rather than anything about the data.
+
+**Check first.** `bash "$SKILL/install.sh" --check-deps` maps this config's channels
+and sources to the servers they need and reports each one. Exit `3` means something
+is unmet; the report carries the exact fix command.
+
+Two blind spots worth knowing:
+
+- It reads the **local agent CLI's** configuration. Connectors enabled in a client
+  UI (Cowork) do not appear, and it exits `4` — "cannot tell" — rather than
+  claiming they are missing.
+- "Connected" is a health check, not a permission check. A server can be connected
+  and still refuse the specific call, e.g. a Chat server that cannot post to a space
+  you are not a member of.
+
+An agent session should trust its own tool list over this script.
+
 ## 5. Delivered to the wrong place, or not at all
 
 - **Wrong space/channel.** The target ids are `identity.delivery.*` in the day's
