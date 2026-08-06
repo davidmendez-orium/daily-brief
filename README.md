@@ -38,9 +38,12 @@ calendar, mail that needs a reply, chat mentions — into one message.
 ## Install
 
 ```
-/plugin marketplace add davidmendez/claude-daily-brief
+/plugin marketplace add davidmendez-orium/daily-brief
 /plugin install daily-brief@daily-brief
 ```
+
+`daily-brief@daily-brief` reads oddly — the first is the plugin, the second the
+marketplace it came from. Both are named after the repo.
 
 Then, in a session:
 

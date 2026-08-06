@@ -2,10 +2,18 @@
   "name": "daily-brief",
   "displayName": "Daily Brief",
   "description": "Composes a personal daily work brief — local git commits and agent-session activity merged with GitHub, Jira, Calendar, Gmail, and chat mentions — and delivers it to Google Chat, Slack, or email. Runs on demand or on an opt-in weekday schedule.",
-  "keywords": ["standup", "digest", "brief", "productivity", "report"],
+  "keywords": [
+    "standup",
+    "digest",
+    "brief",
+    "productivity",
+    "report"
+  ],
   "author": {
     "name": "David Mendez",
     "email": "david.mendez@humblebundle.com"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": "https://github.com/davidmendez-orium/daily-brief",
+  "homepage": "https://github.com/davidmendez-orium/daily-brief"
 }
