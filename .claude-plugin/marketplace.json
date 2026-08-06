@@ -1,0 +1,15 @@
+{
+  "name": "daily-brief",
+  "description": "A personal daily work brief for Claude Code and Cowork — local git and agent activity merged with GitHub, Jira, Calendar, Gmail, and chat, delivered to Google Chat, Slack, or email.",
+  "owner": {
+    "name": "David Mendez",
+    "email": "david.mendez@humblebundle.com"
+  },
+  "plugins": [
+    {
+      "name": "daily-brief",
+      "source": "./plugins/daily-brief",
+      "description": "A personal daily work brief, on demand or on a schedule, delivered to Google Chat, Slack, or email."
+    }
+  ]
+}
