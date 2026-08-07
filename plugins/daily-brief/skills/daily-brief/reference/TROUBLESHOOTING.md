@@ -55,10 +55,14 @@ Reinstall from the latest build; refreshing will not help.
 **Why the alert needs a webhook.** Delivery runs over MCP, and the MCP servers
 authenticate with the very token that died — so a dead token cannot be announced
 through the same path that delivers. `notify.sh` therefore fans out over **incoming
-transports that carry their own credential: a Google Chat webhook
+three channels, all of them if configured: a Google Chat webhook
 (`$BASE/gchat-webhook.url`), a Slack webhook (`$BASE/slack-webhook.url`), and
-email over SMTP (`BRIEF_ALERT_SMTP_*`) — all of them, if configured. With none
-configured, a failed run is discoverable only in the log.
+email (`BRIEF_ALERT_EMAIL_TO`, via the Gmail MCP).
+
+**Only the webhooks can report a dead bridge token.** Email goes through the Gmail
+MCP, which authenticates with that same token — so in the one failure that has
+actually bitten twice, an email-only setup is silent. With no channel at all, a
+failed run is discoverable only in the log.
 
 Verify yours works without waiting for a real failure:
 

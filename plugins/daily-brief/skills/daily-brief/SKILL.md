@@ -90,9 +90,12 @@ failing.
 With no alert channel, nothing tells them a run failed — the failure mode is "I
 noticed my brief never arrived", which is how it has actually gone wrong twice.
 
-**Email here is SMTP, not the Gmail MCP.** The MCP authenticates with the same
-bridge token that is usually the thing being reported, so it cannot announce its
-own failure; an SMTP login is independent of it. Gmail requires an App Password.
+**The channels are not equally robust — say which you set up and what it covers.**
+Webhooks carry their key in the URL and survive anything. Email goes through the
+Gmail MCP, so it needs no new credential but dies with the bridge token — the very
+failure most worth alerting about. Email alone is a partial net: it catches a
+failed model run or a refusing delivery channel, not an expired token. Recommend
+pairing it with a webhook, and do not describe an email-only setup as covered.
 
 ## Routing
 

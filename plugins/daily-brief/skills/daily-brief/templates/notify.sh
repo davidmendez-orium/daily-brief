@@ -11,16 +11,20 @@
 # fired on a machine nobody is looking at, and it doubled up on alerts that had
 # already arrived somewhere real. Chat, Slack, email — that is the whole list.
 #
-# WHY THESE TRANSPORTS AND NOT THE MCP SERVERS. The thing this exists to announce
-# is usually the credential the MCP servers share. When the bridge token dies, the
-# Chat MCP, the Gmail MCP and the Slack connector all die with it, so announcing a
-# dead token through them cannot work. Every channel here carries its OWN
-# credential — a webhook key in the URL, or an SMTP login — so it keeps working
-# precisely when everything else does not.
+# THE CHANNELS ARE NOT EQUALLY ROBUST, AND THAT MATTERS.
 #
-# That is also why this is a separate path from delivery. Delivery goes over MCP
-# because it needs to read a channel back to detect duplicates; alerts go over
-# self-credentialed transports because they must survive a broken MCP.
+#   gchat / slack — incoming webhooks. The key lives in the URL, so they keep
+#                   working when everything else is broken. These are the only
+#                   channels that can report a DEAD BRIDGE TOKEN, because that is
+#                   the credential every MCP server shares.
+#   email         — the Gmail MCP over the HTTP bridge. Reuses the credential you
+#                   already have, so there is nothing new to configure — but it
+#                   authenticates with the very token whose death is the most
+#                   common thing worth alerting about, and fails in that case.
+#
+# So email alone is a partial safety net: it covers a failed model run, a bad
+# compose, an unreachable delivery channel — not an expired token and not a
+# network outage. Pair it with a webhook if you want full coverage.
 set -eu
 
 BASE="${BRIEF_BASE:-$HOME/daily-brief}"
@@ -50,8 +54,6 @@ GCHAT_HOOK="$(resolve "${BRIEF_GCHAT_WEBHOOK_URL:-}" "${BRIEF_GCHAT_WEBHOOK_FILE
               "$BASE/gchat-webhook.url" "$BASE/chat-webhook.url")"
 SLACK_HOOK="$(resolve "${BRIEF_SLACK_WEBHOOK_URL:-}" "${BRIEF_SLACK_WEBHOOK_FILE:-}" \
               "$BASE/slack-webhook.url")"
-SMTP_PASS="$(resolve "${BRIEF_ALERT_SMTP_PASS:-}" "${BRIEF_ALERT_SMTP_PASS_FILE:-}" \
-              "$BASE/smtp-password")"
 
 OK=0
 CONFIGURED=0
@@ -78,54 +80,57 @@ post_hook() {   # <label> <url> <expected-host-fragment>
   fi
 }
 
-# Email over SMTP, NOT the Gmail MCP. The MCP authenticates with the bridge token
-# that is usually the thing being reported; an SMTP login is independent of it.
-# Gmail needs an App Password here, not the account password.
+# Email through the Gmail MCP, driven over the HTTP bridge with plain JSON-RPC —
+# the same transport run.sh probes for token validity. No new credential: it reuses
+# the bridge token already in mcp.json.
+#
+# The catch, stated plainly because it decides whether this channel is enough on
+# its own: that token IS the thing most alerts are about. When it expires, this
+# send fails with it. Webhooks are the only channels that survive that.
 post_email() {
   local to="${BRIEF_ALERT_EMAIL_TO:-}"
-  local url="${BRIEF_ALERT_SMTP_URL:-}"
-  local user="${BRIEF_ALERT_SMTP_USER:-}"
-  local from="${BRIEF_ALERT_EMAIL_FROM:-$user}"
-  [ -n "$to" ] && [ -n "$url" ] || return 0
+  [ -n "$to" ] || return 0
   CONFIGURED=$((CONFIGURED + 1))
-  if [ -z "$user" ] || [ -z "$SMTP_PASS" ]; then
-    echo "  email: FAILED (BRIEF_ALERT_SMTP_USER or the SMTP password is missing)"
+
+  local mcp="$BASE/mcp.json"
+  if [ ! -f "$mcp" ]; then
+    echo "  email: FAILED (no $mcp — run install.sh, or set BRIEF_MCP_SOURCE_DIR)"
+    return 0
+  fi
+  local bridge tok
+  bridge="$(jq -r '[.mcpServers[].env.TELEOS_MCP_BRIDGE_BASE // empty] | first // ""' "$mcp")"
+  tok="$(jq -r '[.mcpServers[].env.MCP_BRIDGE_TOKEN // empty] | first // ""' "$mcp")"
+  if [ -z "$bridge" ] || [ -z "$tok" ]; then
+    echo "  email: FAILED (no Gmail MCP bridge or token in $mcp)"
     return 0
   fi
 
-  local body rc
-  body="$(mktemp)"
-  # A bare LF body is accepted by every SMTP server in practice; headers must come
-  # first, then one blank line, then the text.
-  {
-    printf 'From: %s\n' "$from"
-    printf 'To: %s\n' "$to"
-    printf 'Subject: %s\n' "$SUBJECT"
-    printf 'Date: %s\n' "$(date -R 2>/dev/null || date)"
-    printf 'Content-Type: text/plain; charset=UTF-8\n'
-    printf '\n%s\n' "$MSG"
-  } > "$body"
+  local payload resp errmsg
+  payload="$(jq -nc \
+    --arg s "$SUBJECT" --arg b "$MSG" \
+    --argjson to "$(printf '%s' "$to" | jq -R -c 'split(" ") | map(select(length>0))')" \
+    '{jsonrpc:"2.0", id:1, method:"tools/call",
+      params:{name:"gmail_send_email_as_agent",
+              arguments:{to:$to, subject:$s, body:$b}}}')"
 
-  # TLS is required by default. BRIEF_ALERT_SMTP_INSECURE=1 drops that for a
-  # trusted local relay or a test stub — it sends the SMTP login in the clear, so
-  # never point it at a remote server.
-  local tls_args
-  if [ -n "${BRIEF_ALERT_SMTP_INSECURE:-}" ]; then tls_args="-k"; else tls_args="--ssl-reqd"; fi
+  resp="$(curl -s -X POST "$bridge/gmail" --max-time 30 \
+    -H 'Content-Type: application/json' -H 'Accept: application/json' \
+    -H "X-Mcp-Bridge-Token: $tok" \
+    -d "$payload" 2>/dev/null || true)"
 
-  rc=0
-  # shellcheck disable=SC2086
-  curl -s --show-error --max-time 30 $tls_args --url "$url" \
-    --user "$user:$SMTP_PASS" \
-    --mail-from "$from" \
-    $(for r in $to; do printf -- '--mail-rcpt %s ' "$r"; done) \
-    --upload-file "$body" >/dev/null 2>&1 || rc=$?
-  rm -f "$body"
-
-  if [ "$rc" -eq 0 ]; then
+  # Two shapes of failure: a JSON-RPC error, or a result flagged isError.
+  errmsg="$(printf '%s' "$resp" | jq -r '
+      .error.message // (if (.result.isError // false) then ((.result.content[0].text) // "tool error") else empty end)
+    ' 2>/dev/null || true)"
+  if [ -z "$resp" ]; then
+    echo "  email: FAILED (no response from the bridge)"
+  elif [ -n "$errmsg" ]; then
+    echo "  email: FAILED ($(printf '%s' "$errmsg" | head -c 120))"
+  elif printf '%s' "$resp" | jq -e '.result' >/dev/null 2>&1; then
     echo "  email: sent to $to"
     OK=$((OK + 1))
   else
-    echo "  email: FAILED (curl exit $rc)"
+    echo "  email: FAILED (unrecognised response: $(printf '%s' "$resp" | head -c 120))"
   fi
 }
 

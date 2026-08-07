@@ -137,9 +137,9 @@ webhook carries its own key.
 
 Drop a URL in `~/daily-brief/gchat-webhook.url` or `~/daily-brief/slack-webhook.url`
 (or both) and every failure — dead token, no network, all model attempts spent —
-fans out to all of them. Email is also available, over **SMTP** — not the Gmail
-MCP, which authenticates with the same credential that is usually the thing being
-reported. Test it any time:
+fans out to all of them. Email works too — set `BRIEF_ALERT_EMAIL_TO`, which uses
+the Gmail MCP and needs no new credential, but note it dies with the bridge token
+and so cannot report *that* failure. Webhooks can. Test any of it any time:
 
 ```bash
 bash ~/daily-brief/notify.sh "test alert"
