@@ -24,12 +24,22 @@ order, and say `(+N more)` for anything cut.
 
 ## Duplicate check
 
-Call `chat_list_messages` on the space, `page_size=5`. If a message posted TODAY
-matches the `🗞️ Daily Brief — <today>` header, do not post again — report
-`ALREADY_POSTED <TODAY>` for this channel and move on.
+**`chat_list_messages` returns OLDEST first.** A bare `page_size=5` therefore
+returns the space's five *earliest* messages and will never show today's brief —
+a check written that way silently always passes. Verified against a real space.
 
-This matters because the headless runner retries on failure; without it a retry
-double-posts.
+Two correct ways, cheapest first:
+
+1. **Use `lastActiveTime`.** `chat_list_spaces` already reports it per space, and
+   the Chat source scan usually has that payload in hand. If the delivery space's
+   `lastActiveTime` is earlier than today, nothing was posted today — done, no
+   further call.
+2. **Read newest-first.** `chat_list_messages` with `order_by="createTime desc"`
+   and `page_size=5`, then match the `🗞️ Daily Brief — <today>` header.
+
+If today's brief is there, report `ALREADY_POSTED <TODAY>` for this channel and
+move on. This matters because the headless runner retries on failure; without a
+working check a retry double-posts.
 
 ## Send
 

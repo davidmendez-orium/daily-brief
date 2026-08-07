@@ -125,6 +125,11 @@ Two searches, not three — one covers both worked-in-window and in-flight:
   with `comment` added to `fields`. Do NOT include `text ~ currentUser()` — it
   matches OWNER's name anywhere in an issue and floods the result with false
   positives.
+  **Use `limit=5` here, not 20.** `comment` returns every comment body on every
+  matched issue; at 20 issues this payload has hit 600k+ characters and been
+  spilled to a file. If that happens, do NOT read the file back in — filter it in
+  the shell and read only the result, e.g.
+  `jq -r '.issues[] | .key as $k | (.fields.comment.comments//[]) | map(select(.created >= "<start>")) | .[] | "\($k) \(.author.displayName): \([.body|..|.text?//empty]|join(" ")|.[0:200])"' <file>`
   Then **filter the hits yourself**: keep one only if a comment written in the
   window actually addresses or @-mentions OWNER. **Never skip this section because
   the result set was noisy** — filtering it down is the job. If after filtering
