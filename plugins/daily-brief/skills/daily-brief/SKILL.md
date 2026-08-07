@@ -74,14 +74,12 @@ token through them cannot work. A webhook carries its own key in its URL.
 
 `notify.sh` fans one short message out to **every** service with a webhook
 configured (`$BASE/gchat-webhook.url`, `$BASE/slack-webhook.url`). Channels are
-independent — one failing does not stop the others. A desktop notification is the
-**fallback**, fired only when no webhook took it: once a webhook exists the alert
-belongs where the person will see it, and popping a system notification too is
-just noise on the machine.
+independent — one failing does not stop the others.
 
-**When testing, set `BRIEF_NOTIFY_NO_DESKTOP=1`.** Verifying the webhook path
-should never put notifications on someone's screen — a handful of test runs in a
-few minutes reads as spam, and it has.
+**There is no desktop notification, by request.** It carried no useful detail and
+fired on a machine nobody is watching. Chat, Slack, email — that is the whole
+list. If none is configured, a failed run is discoverable only in the log; say so
+plainly rather than implying someone will be told.
 
 `run.sh` routes all three failure classes through it: dead bridge token (announced
 once per distinct token, latched by hash so a 15-minute retry loop is not a
@@ -89,11 +87,12 @@ once per distinct token, latched by hash so a 15-minute retry loop is not a
 failing.
 
 **When setting someone up, ask about this explicitly if they schedule the brief.**
-With no webhook the only alert is a desktop notification, which nobody sees on a
-closed laptop — the failure mode is then "I noticed my brief never arrived", which
-is how it has actually gone wrong. **Email cannot serve here**: sending mail goes
-through the Gmail MCP and dies with the same token, so an email-only setup still
-needs a Chat or Slack webhook.
+With no alert channel, nothing tells them a run failed — the failure mode is "I
+noticed my brief never arrived", which is how it has actually gone wrong twice.
+
+**Email here is SMTP, not the Gmail MCP.** The MCP authenticates with the same
+bridge token that is usually the thing being reported, so it cannot announce its
+own failure; an SMTP login is independent of it. Gmail requires an App Password.
 
 ## Routing
 

@@ -243,6 +243,17 @@ plutil -lint "$PLIST" >/dev/null || { echo "generated plist is invalid: $PLIST" 
 launchctl unload -w "$PLIST" 2>/dev/null || true
 launchctl load -w "$PLIST"
 echo "scheduled $LABEL — Mon–Fri at $HOUR:$(printf '%02d' "$MINUTE") local"
+
+# A scheduled run has nobody watching it, so silent failure is the real risk.
+if ! BRIEF_BASE="$BASE" bash "$BASE/notify.sh" "" >/dev/null 2>&1; then
+  if [ -z "${BRIEF_ALERT_EMAIL_TO:-}" ] && [ ! -f "$BASE/gchat-webhook.url" ] \
+     && [ ! -f "$BASE/slack-webhook.url" ]; then
+    echo
+    echo "WARNING: no alert channel is configured, so a failed scheduled run will be"
+    echo "         silent — you would only find it in $BASE/logs/. Configure one:"
+    echo "           $BASE/gchat-webhook.url · $BASE/slack-webhook.url · BRIEF_ALERT_EMAIL_TO"
+  fi
+fi
 echo
 echo "Still runnable on demand:  bash $BASE/run.sh   (or /daily-brief in an agent session)"
 echo "Drop the schedule:         bash $SKILL_DIR/install.sh --unschedule"

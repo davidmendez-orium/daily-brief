@@ -64,8 +64,8 @@ csv_row() {
   echo "$(date +%F),$1,$2,$3,$4,$5,$6" >> "$COST_CSV"
 }
 
-# Every alert goes through notify.sh, which fans out to whichever messaging
-# services have an incoming webhook configured, then adds a desktop notification.
+# Every alert goes through notify.sh, which fans out to every configured alert
+# channel — Google Chat, Slack, email.
 # Webhooks specifically, not the MCP servers: the failure being announced is
 # usually the shared credential those servers authenticate with, so they are down
 # in exactly the case that matters.
@@ -178,7 +178,8 @@ echo "--- token preflight ---"
 
 # Announce an expiry exactly once. The chat MCP authenticates with the very token
 # that is broken, so this cannot go through the bridge — it needs a webhook, which
-# carries its own key. Without one the alert degrades to a desktop notification.
+# carries its own credential. With no alert channel configured, a failed run is
+# only discoverable in the log.
 # Announce once per distinct token, not once per poll — the latch is what keeps a
 # 15-minute retry loop from becoming a 15-minute spam loop.
 alert_token_expired() {   # <error_code>

@@ -137,15 +137,15 @@ webhook carries its own key.
 
 Drop a URL in `~/daily-brief/gchat-webhook.url` or `~/daily-brief/slack-webhook.url`
 (or both) and every failure — dead token, no network, all model attempts spent —
-fans out to all of them. A desktop notification is the fallback when no webhook
-took it. Test it any time:
+fans out to all of them. Email is also available, over **SMTP** — not the Gmail
+MCP, which authenticates with the same credential that is usually the thing being
+reported. Test it any time:
 
 ```bash
-BRIEF_NOTIFY_NO_DESKTOP=1 bash ~/daily-brief/notify.sh "test alert"
+bash ~/daily-brief/notify.sh "test alert"
 ```
 
-Email cannot be an alert channel: it sends through the Gmail MCP and dies with the
-same credential.
+There is no desktop notification.
 
 ## Requirements
 

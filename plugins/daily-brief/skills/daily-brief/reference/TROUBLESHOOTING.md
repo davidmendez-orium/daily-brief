@@ -55,20 +55,19 @@ Reinstall from the latest build; refreshing will not help.
 **Why the alert needs a webhook.** Delivery runs over MCP, and the MCP servers
 authenticate with the very token that died — so a dead token cannot be announced
 through the same path that delivers. `notify.sh` therefore fans out over **incoming
-webhooks**, which carry their own key: `$BASE/gchat-webhook.url` and
-`$BASE/slack-webhook.url`, both if present. Without at least one, the alert is a
-desktop notification only, which nobody sees on a closed laptop.
+transports that carry their own credential: a Google Chat webhook
+(`$BASE/gchat-webhook.url`), a Slack webhook (`$BASE/slack-webhook.url`), and
+email over SMTP (`BRIEF_ALERT_SMTP_*`) — all of them, if configured. With none
+configured, a failed run is discoverable only in the log.
 
 Verify yours works without waiting for a real failure:
 
 ```bash
-BRIEF_NOTIFY_NO_DESKTOP=1 bash ~/daily-brief/notify.sh "test alert"
+bash ~/daily-brief/notify.sh "test alert"
 ```
 
-It prints one line per channel and exits 1 if nothing took it. Keep
-`BRIEF_NOTIFY_NO_DESKTOP=1` on test runs — the desktop notification is a fallback
-for when no webhook took the message, and repeated test runs without it just spam
-the screen.
+It prints one line per channel and exits 1 if nothing took it. Nothing fires on
+the desktop, so a test run is safe to repeat.
 
 **Not applicable** when `BRIEF_MCP_SOURCE_DIR` is unset, or when the config has no
 bridge token — both gates are skipped entirely.

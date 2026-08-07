@@ -1,33 +1,26 @@
 #!/usr/bin/env bash
 # Out-of-band alerting for the daily brief.
 #
-#   bash notify.sh "<message>" ["<title>"]
+#   bash notify.sh "<message>" ["<subject>"]
 #
-# Fans a short message out to every messaging service that has an INCOMING
-# WEBHOOK configured. If none of them took it, falls back to a desktop
-# notification. Prints one line per channel; exits 0 if anyone was told.
+# Fans a short message out to every alert channel that is configured — Google
+# Chat, Slack, email — and prints one line per channel. Exits 0 if any channel
+# took it, 1 if none did.
 #
-# The desktop notification is a FALLBACK, not an addition. Once a webhook is
-# configured the alert belongs in the space where you will actually see it, and
-# popping a system notification as well is just noise on the machine.
-# BRIEF_NOTIFY_NO_DESKTOP=1 suppresses it entirely — use it when testing the
-# webhook path so a test run cannot spam the desktop.
+# There is deliberately NO desktop notification. It carried no useful detail, it
+# fired on a machine nobody is looking at, and it doubled up on alerts that had
+# already arrived somewhere real. Chat, Slack, email — that is the whole list.
 #
-# WHY WEBHOOKS AND NOT THE MCP SERVERS. The thing this exists to announce is
-# usually the credential the MCP servers share. When the bridge token dies, the
-# Chat MCP, the Gmail MCP and the Slack connector all die with it — announcing a
-# dead token through them cannot work. An incoming webhook carries its own key in
-# its URL, so it keeps working precisely when everything else does not.
+# WHY THESE TRANSPORTS AND NOT THE MCP SERVERS. The thing this exists to announce
+# is usually the credential the MCP servers share. When the bridge token dies, the
+# Chat MCP, the Gmail MCP and the Slack connector all die with it, so announcing a
+# dead token through them cannot work. Every channel here carries its OWN
+# credential — a webhook key in the URL, or an SMTP login — so it keeps working
+# precisely when everything else does not.
 #
 # That is also why this is a separate path from delivery. Delivery goes over MCP
-# because it needs to read a channel back to avoid duplicates; alerts go over
-# webhooks because they need to survive a broken MCP. Neither substitutes for the
-# other.
-#
-# EMAIL IS NOT AN ALERT CHANNEL. Sending mail goes through the Gmail MCP, which
-# authenticates with the same bridge token, so it fails in exactly the case that
-# matters. There is no webhook equivalent. If email is your only delivery channel,
-# configure a Chat or Slack webhook anyway — otherwise a dead token is silent.
+# because it needs to read a channel back to detect duplicates; alerts go over
+# self-credentialed transports because they must survive a broken MCP.
 set -eu
 
 BASE="${BRIEF_BASE:-$HOME/daily-brief}"
@@ -35,16 +28,16 @@ CONFIG="$BASE/config.env"
 # shellcheck disable=SC1090
 [ -f "$CONFIG" ] && . "$CONFIG"
 
-MSG="${1:?usage: notify.sh <message> [title]}"
-TITLE="${2:-Daily brief}"
+MSG="${1:?usage: notify.sh <message> [subject]}"
+SUBJECT="${2:-Daily brief}"
 
-# Resolve a channel's webhook: explicit URL var wins, then an explicit file, then
-# the conventional filename. Keeping URLs in files rather than config.env is
-# deliberate — a webhook URL is a credential, and anyone holding it can post.
-resolve_hook() {   # <URL-var-value> <FILE-var-value> <default-file>...
-  local url="$1"; shift
+# Resolve a secret: explicit value wins, then an explicit file, then conventional
+# paths. Files are preferred — a webhook URL or SMTP password is a credential, and
+# config.env is a config file people read over each other's shoulders.
+resolve() {   # <inline-value> <file-path> <default-file>...
+  local v="$1"; shift
   local f="$1"; shift
-  if [ -n "$url" ]; then printf '%s' "$url"; return; fi
+  if [ -n "$v" ]; then printf '%s' "$v"; return; fi
   if [ -n "$f" ] && [ -f "$f" ]; then tr -d '[:space:]' < "$f"; return; fi
   local d
   for d in "$@"; do
@@ -53,16 +46,18 @@ resolve_hook() {   # <URL-var-value> <FILE-var-value> <default-file>...
   printf ''
 }
 
-GCHAT_HOOK="$(resolve_hook "${BRIEF_GCHAT_WEBHOOK_URL:-}" "${BRIEF_GCHAT_WEBHOOK_FILE:-}" \
+GCHAT_HOOK="$(resolve "${BRIEF_GCHAT_WEBHOOK_URL:-}" "${BRIEF_GCHAT_WEBHOOK_FILE:-}" \
               "$BASE/gchat-webhook.url" "$BASE/chat-webhook.url")"
-SLACK_HOOK="$(resolve_hook "${BRIEF_SLACK_WEBHOOK_URL:-}" "${BRIEF_SLACK_WEBHOOK_FILE:-}" \
+SLACK_HOOK="$(resolve "${BRIEF_SLACK_WEBHOOK_URL:-}" "${BRIEF_SLACK_WEBHOOK_FILE:-}" \
               "$BASE/slack-webhook.url")"
+SMTP_PASS="$(resolve "${BRIEF_ALERT_SMTP_PASS:-}" "${BRIEF_ALERT_SMTP_PASS_FILE:-}" \
+              "$BASE/smtp-password")"
 
 OK=0
 CONFIGURED=0
 
-# Google Chat and Slack incoming webhooks both accept {"text": "..."} and both
-# render *bold* / `code` the same way, so one payload serves both.
+# Google Chat and Slack incoming webhooks both accept {"text": "..."} and render
+# *bold* / `code` the same way, so one payload serves both.
 post_hook() {   # <label> <url> <expected-host-fragment>
   local label="$1" url="$2" want="$3"
   [ -n "$url" ] || return 0
@@ -83,24 +78,67 @@ post_hook() {   # <label> <url> <expected-host-fragment>
   fi
 }
 
+# Email over SMTP, NOT the Gmail MCP. The MCP authenticates with the bridge token
+# that is usually the thing being reported; an SMTP login is independent of it.
+# Gmail needs an App Password here, not the account password.
+post_email() {
+  local to="${BRIEF_ALERT_EMAIL_TO:-}"
+  local url="${BRIEF_ALERT_SMTP_URL:-}"
+  local user="${BRIEF_ALERT_SMTP_USER:-}"
+  local from="${BRIEF_ALERT_EMAIL_FROM:-$user}"
+  [ -n "$to" ] && [ -n "$url" ] || return 0
+  CONFIGURED=$((CONFIGURED + 1))
+  if [ -z "$user" ] || [ -z "$SMTP_PASS" ]; then
+    echo "  email: FAILED (BRIEF_ALERT_SMTP_USER or the SMTP password is missing)"
+    return 0
+  fi
+
+  local body rc
+  body="$(mktemp)"
+  # A bare LF body is accepted by every SMTP server in practice; headers must come
+  # first, then one blank line, then the text.
+  {
+    printf 'From: %s\n' "$from"
+    printf 'To: %s\n' "$to"
+    printf 'Subject: %s\n' "$SUBJECT"
+    printf 'Date: %s\n' "$(date -R 2>/dev/null || date)"
+    printf 'Content-Type: text/plain; charset=UTF-8\n'
+    printf '\n%s\n' "$MSG"
+  } > "$body"
+
+  # TLS is required by default. BRIEF_ALERT_SMTP_INSECURE=1 drops that for a
+  # trusted local relay or a test stub — it sends the SMTP login in the clear, so
+  # never point it at a remote server.
+  local tls_args
+  if [ -n "${BRIEF_ALERT_SMTP_INSECURE:-}" ]; then tls_args="-k"; else tls_args="--ssl-reqd"; fi
+
+  rc=0
+  # shellcheck disable=SC2086
+  curl -s --show-error --max-time 30 $tls_args --url "$url" \
+    --user "$user:$SMTP_PASS" \
+    --mail-from "$from" \
+    $(for r in $to; do printf -- '--mail-rcpt %s ' "$r"; done) \
+    --upload-file "$body" >/dev/null 2>&1 || rc=$?
+  rm -f "$body"
+
+  if [ "$rc" -eq 0 ]; then
+    echo "  email: sent to $to"
+    OK=$((OK + 1))
+  else
+    echo "  email: FAILED (curl exit $rc)"
+  fi
+}
+
 post_hook gchat "$GCHAT_HOOK" "chat.googleapis.com"
 post_hook slack "$SLACK_HOOK" "hooks.slack.com"
-
-# Fallback only: no webhook took it, so try the machine in front of you.
-DESKTOP_OK=0
-if [ "$OK" -eq 0 ] && [ -z "${BRIEF_NOTIFY_NO_DESKTOP:-}" ]; then
-  if command -v osascript >/dev/null 2>&1; then
-    osascript -e "display notification \"$MSG\" with title \"$TITLE\"" >/dev/null 2>&1 \
-      && { echo "  desktop: shown (fallback)"; DESKTOP_OK=1; } || true
-  elif command -v notify-send >/dev/null 2>&1; then
-    notify-send "$TITLE" "$MSG" >/dev/null 2>&1 \
-      && { echo "  desktop: shown (fallback)"; DESKTOP_OK=1; } || true
-  fi
-fi
+post_email
 
 if [ "$CONFIGURED" -eq 0 ]; then
-  echo "  no webhooks configured — alerts can only reach this desktop, which nobody"
-  echo "  sees on a closed laptop. Set one up: $BASE/gchat-webhook.url or $BASE/slack-webhook.url"
+  echo "  NO ALERT CHANNEL CONFIGURED — a failed run can only be found in the log."
+  echo "  Configure at least one of:"
+  echo "    $BASE/gchat-webhook.url    (Chat space → Apps & integrations → Webhooks)"
+  echo "    $BASE/slack-webhook.url    (api.slack.com/apps → Incoming Webhooks)"
+  echo "    BRIEF_ALERT_EMAIL_TO + BRIEF_ALERT_SMTP_* in config.env"
 fi
 
-[ "$OK" -gt 0 ] || [ "$DESKTOP_OK" -eq 1 ] && exit 0 || exit 1
+[ "$OK" -gt 0 ] && exit 0 || exit 1
