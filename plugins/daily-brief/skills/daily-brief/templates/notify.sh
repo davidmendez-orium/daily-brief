@@ -143,7 +143,7 @@ if [ "$CONFIGURED" -eq 0 ]; then
   echo "  Configure at least one of:"
   echo "    $BASE/gchat-webhook.url    (Chat space → Apps & integrations → Webhooks)"
   echo "    $BASE/slack-webhook.url    (api.slack.com/apps → Incoming Webhooks)"
-  echo "    BRIEF_ALERT_EMAIL_TO + BRIEF_ALERT_SMTP_* in config.env"
+  echo "    BRIEF_ALERT_EMAIL_TO in config.env  (Gmail MCP — cannot report a dead token)"
 fi
 
 [ "$OK" -gt 0 ] && exit 0 || exit 1
