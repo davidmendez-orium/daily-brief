@@ -36,8 +36,8 @@ MSG="${1:?usage: notify.sh <message> [subject]}"
 SUBJECT="${2:-Daily brief}"
 
 # Resolve a secret: explicit value wins, then an explicit file, then conventional
-# paths. Files are preferred — a webhook URL or SMTP password is a credential, and
-# config.env is a config file people read over each other's shoulders.
+# paths. Files are preferred — a webhook URL is a credential, and config.env is a
+# config file people read over each other's shoulders.
 resolve() {   # <inline-value> <file-path> <default-file>...
   local v="$1"; shift
   local f="$1"; shift
