@@ -73,9 +73,15 @@ the Gmail MCP and the Slack connector all authenticate with it. Announcing a dea
 token through them cannot work. A webhook carries its own key in its URL.
 
 `notify.sh` fans one short message out to **every** service with a webhook
-configured (`$BASE/gchat-webhook.url`, `$BASE/slack-webhook.url`), then adds a
-desktop notification. Channels are independent — one failing does not stop the
-others, and it exits 0 if any channel took it.
+configured (`$BASE/gchat-webhook.url`, `$BASE/slack-webhook.url`). Channels are
+independent — one failing does not stop the others. A desktop notification is the
+**fallback**, fired only when no webhook took it: once a webhook exists the alert
+belongs where the person will see it, and popping a system notification too is
+just noise on the machine.
+
+**When testing, set `BRIEF_NOTIFY_NO_DESKTOP=1`.** Verifying the webhook path
+should never put notifications on someone's screen — a handful of test runs in a
+few minutes reads as spam, and it has.
 
 `run.sh` routes all three failure classes through it: dead bridge token (announced
 once per distinct token, latched by hash so a 15-minute retry loop is not a

@@ -62,10 +62,13 @@ desktop notification only, which nobody sees on a closed laptop.
 Verify yours works without waiting for a real failure:
 
 ```bash
-BRIEF_BASE=~/daily-brief bash ~/daily-brief/notify.sh "test alert"
+BRIEF_NOTIFY_NO_DESKTOP=1 bash ~/daily-brief/notify.sh "test alert"
 ```
 
-It prints one line per channel and exits 1 if nothing took it.
+It prints one line per channel and exits 1 if nothing took it. Keep
+`BRIEF_NOTIFY_NO_DESKTOP=1` on test runs — the desktop notification is a fallback
+for when no webhook took the message, and repeated test runs without it just spam
+the screen.
 
 **Not applicable** when `BRIEF_MCP_SOURCE_DIR` is unset, or when the config has no
 bridge token — both gates are skipped entirely.

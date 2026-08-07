@@ -4,8 +4,14 @@
 #   bash notify.sh "<message>" ["<title>"]
 #
 # Fans a short message out to every messaging service that has an INCOMING
-# WEBHOOK configured, then adds a desktop notification. Prints one line per
-# channel and exits 0 if any channel took it, 1 if none did.
+# WEBHOOK configured. If none of them took it, falls back to a desktop
+# notification. Prints one line per channel; exits 0 if anyone was told.
+#
+# The desktop notification is a FALLBACK, not an addition. Once a webhook is
+# configured the alert belongs in the space where you will actually see it, and
+# popping a system notification as well is just noise on the machine.
+# BRIEF_NOTIFY_NO_DESKTOP=1 suppresses it entirely — use it when testing the
+# webhook path so a test run cannot spam the desktop.
 #
 # WHY WEBHOOKS AND NOT THE MCP SERVERS. The thing this exists to announce is
 # usually the credential the MCP servers share. When the bridge token dies, the
@@ -80,18 +86,21 @@ post_hook() {   # <label> <url> <expected-host-fragment>
 post_hook gchat "$GCHAT_HOOK" "chat.googleapis.com"
 post_hook slack "$SLACK_HOOK" "hooks.slack.com"
 
-# Always also try the desktop, which costs nothing and is the only thing that
-# works with no webhooks at all.
-if command -v osascript >/dev/null 2>&1; then
-  osascript -e "display notification \"$MSG\" with title \"$TITLE\"" >/dev/null 2>&1 \
-    && echo "  desktop: shown" || true
-elif command -v notify-send >/dev/null 2>&1; then
-  notify-send "$TITLE" "$MSG" >/dev/null 2>&1 && echo "  desktop: shown" || true
+# Fallback only: no webhook took it, so try the machine in front of you.
+DESKTOP_OK=0
+if [ "$OK" -eq 0 ] && [ -z "${BRIEF_NOTIFY_NO_DESKTOP:-}" ]; then
+  if command -v osascript >/dev/null 2>&1; then
+    osascript -e "display notification \"$MSG\" with title \"$TITLE\"" >/dev/null 2>&1 \
+      && { echo "  desktop: shown (fallback)"; DESKTOP_OK=1; } || true
+  elif command -v notify-send >/dev/null 2>&1; then
+    notify-send "$TITLE" "$MSG" >/dev/null 2>&1 \
+      && { echo "  desktop: shown (fallback)"; DESKTOP_OK=1; } || true
+  fi
 fi
 
 if [ "$CONFIGURED" -eq 0 ]; then
-  echo "  no webhooks configured — a dead bridge token cannot be announced anywhere."
-  echo "  set one up: $BASE/gchat-webhook.url or $BASE/slack-webhook.url"
+  echo "  no webhooks configured — alerts can only reach this desktop, which nobody"
+  echo "  sees on a closed laptop. Set one up: $BASE/gchat-webhook.url or $BASE/slack-webhook.url"
 fi
 
-[ "$OK" -gt 0 ] && exit 0 || exit 1
+[ "$OK" -gt 0 ] || [ "$DESKTOP_OK" -eq 1 ] && exit 0 || exit 1
