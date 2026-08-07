@@ -128,6 +128,24 @@ The skill goes further in a session — it can see its own tool list (the only c
 that works in Cowork), offers to register a server you already have defined
 elsewhere, and prints exactly what is left for you to do by hand.
 
+## Alerting
+
+Delivery goes over MCP; **alerts go over incoming webhooks**, deliberately. What an
+alert usually reports is a dead shared credential — and every MCP server
+authenticates with it, so announcing the failure through them cannot work. A
+webhook carries its own key.
+
+Drop a URL in `~/daily-brief/gchat-webhook.url` or `~/daily-brief/slack-webhook.url`
+(or both) and every failure — dead token, no network, all model attempts spent —
+fans out to all of them plus a desktop notification. Test it any time:
+
+```bash
+bash ~/daily-brief/notify.sh "test alert"
+```
+
+Email cannot be an alert channel: it sends through the Gmail MCP and dies with the
+same credential.
+
 ## Requirements
 
 - `jq`, `git`, `curl`
@@ -145,6 +163,7 @@ plugins/daily-brief/
     ├── SKILL.md                     routing + the interactive path
     ├── install.sh                   idempotent installer, --schedule/--status/…
     ├── check-deps.sh                MCP dependency report (also run by install)
+    ├── templates/notify.sh          webhook fan-out for failure alerts
     ├── templates/                   collect.sh, run.sh, brief-prompt.md, config
     ├── delivery/                    gchat.md, slack.md, email.md
     └── reference/                   PLATFORMS.md, TROUBLESHOOTING.md

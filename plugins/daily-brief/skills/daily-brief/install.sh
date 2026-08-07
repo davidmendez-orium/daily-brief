@@ -105,15 +105,15 @@ fi
 cp "$TPL/config.env.example" "$BASE/config.env.example"
 
 # ---- program files (always refreshed from the plugin) ------------------------
-for f in collect.sh run.sh brief-prompt.md; do
+for f in collect.sh run.sh notify.sh brief-prompt.md; do
   cp "$TPL/$f" "$BASE/$f"
 done
-chmod +x "$BASE/collect.sh" "$BASE/run.sh"
+chmod +x "$BASE/collect.sh" "$BASE/run.sh" "$BASE/notify.sh"
 # Delivery cards travel with the brief so the headless runner and an agent session
 # resolve the same path for them.
 rm -rf "$BASE/delivery"
 cp -R "$SKILL_DIR/delivery" "$BASE/delivery"
-echo "installed collect.sh, run.sh, brief-prompt.md, delivery/ → $BASE"
+echo "installed collect.sh, run.sh, notify.sh, brief-prompt.md, delivery/ → $BASE"
 
 if [ "$NEW_CONFIG" = 1 ]; then
   echo

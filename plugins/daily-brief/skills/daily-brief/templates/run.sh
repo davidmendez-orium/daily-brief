@@ -39,7 +39,6 @@ GATE_MAX="${BRIEF_GATE_MAX:-28800}"   # 8h, then give up rather than block tomor
 TOKEN_POLL="${BRIEF_TOKEN_POLL:-900}" # 15m between token re-checks
 START_DAY="$(date +%F)"
 
-WEBHOOK_FILE="${BRIEF_WEBHOOK_FILE:-$BASE/chat-webhook.url}"
 ALERT_STATE="$BASE/logs/.token-alert-fingerprint"
 
 # launchd gives us a bare env — rebuild PATH. node is often under nvm; pick newest.
@@ -65,16 +64,14 @@ csv_row() {
   echo "$(date +%F),$1,$2,$3,$4,$5,$6" >> "$COST_CSV"
 }
 
-# The brief may deliver through the very bridge that is broken, so when that is
-# the failure there is no way to report it through the same path. Fall back to a
-# desktop notification where one exists.
+# Every alert goes through notify.sh, which fans out to whichever messaging
+# services have an incoming webhook configured, then adds a desktop notification.
+# Webhooks specifically, not the MCP servers: the failure being announced is
+# usually the shared credential those servers authenticate with, so they are down
+# in exactly the case that matters.
 notify() {
-  if command -v osascript >/dev/null 2>&1; then
-    osascript -e "display notification \"$1\" with title \"Daily brief did not deliver\"" >/dev/null 2>&1 || true
-  elif command -v notify-send >/dev/null 2>&1; then
-    notify-send "Daily brief did not deliver" "$1" >/dev/null 2>&1 || true
-  fi
-  echo "  NOTIFY: $1"
+  echo "  ALERT: $1"
+  BRIEF_BASE="$BASE" bash "$BASE/notify.sh" "$1" "Daily brief" 2>&1 | sed 's/^/  /' || true
 }
 
 die_out() {   # <reason-for-log> <notification> <csv-outcome>
@@ -182,25 +179,16 @@ echo "--- token preflight ---"
 # Announce an expiry exactly once. The chat MCP authenticates with the very token
 # that is broken, so this cannot go through the bridge — it needs a webhook, which
 # carries its own key. Without one the alert degrades to a desktop notification.
+# Announce once per distinct token, not once per poll — the latch is what keeps a
+# 15-minute retry loop from becoming a 15-minute spam loop.
 alert_token_expired() {   # <error_code>
   FP="$(printf '%s' "$TOKEN" | shasum -a 256 2>/dev/null | cut -c1-12 || printf 'nohash')"
   [ -f "$ALERT_STATE" ] && [ "$(cat "$ALERT_STATE")" = "$FP" ] && return
   if [ "$TOKEN_POLL" -ge 60 ]; then EVERY="$((TOKEN_POLL / 60)) min"; else EVERY="${TOKEN_POLL}s"; fi
-  MSG="⚠️ *Daily brief blocked* — the MCP bridge token is \`$1\`. Renew it${REFRESH_URL:+ at $REFRESH_URL}; I re-check every ${EVERY} and deliver as soon as it is valid."
-  if [ -n "${WEBHOOK:-}" ]; then
-    curl -s -o /dev/null --max-time 20 -X POST "$WEBHOOK" \
-      -H 'Content-Type: application/json; charset=UTF-8' \
-      --data "$(jq -nc --arg t "$MSG" '{text: $t}')" \
-      && echo "  posted expiry notice via webhook" || echo "  WARNING: webhook post failed"
-  else
-    echo "  no webhook configured ($WEBHOOK_FILE) — cannot announce with a dead token"
-  fi
-  notify "MCP bridge token $1 — renew it and the brief delivers itself once valid."
+  notify "⚠️ *Daily brief blocked* — the MCP bridge token is \`$1\`. Renew it${REFRESH_URL:+ at $REFRESH_URL}; I re-check every ${EVERY} and deliver as soon as it is valid."
   printf '%s\n' "$FP" > "$ALERT_STATE"
 }
 
-WEBHOOK=""
-[ -f "$WEBHOOK_FILE" ] && WEBHOOK="$(tr -d '[:space:]' < "$WEBHOOK_FILE")"
 PROBE_SERVICE="$(jq -r '.mcpServers | keys | first' "$BASE/mcp.json")"
 
 while :; do

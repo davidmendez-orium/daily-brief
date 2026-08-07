@@ -52,10 +52,20 @@ rather than blocking the next day, and `cost.csv` records `STALE_ABANDONED` or
 **`bridge_token_superseded` is different** — a newer export replaced the token.
 Reinstall from the latest build; refreshing will not help.
 
-**Why the alert needs a webhook.** If delivery is Google Chat over the same bridge,
-a dead token cannot be announced through it. That is what `chat-webhook.url` is for.
-Without it the alert is a desktop notification only, which nobody sees until they
-open the laptop.
+**Why the alert needs a webhook.** Delivery runs over MCP, and the MCP servers
+authenticate with the very token that died — so a dead token cannot be announced
+through the same path that delivers. `notify.sh` therefore fans out over **incoming
+webhooks**, which carry their own key: `$BASE/gchat-webhook.url` and
+`$BASE/slack-webhook.url`, both if present. Without at least one, the alert is a
+desktop notification only, which nobody sees on a closed laptop.
+
+Verify yours works without waiting for a real failure:
+
+```bash
+BRIEF_BASE=~/daily-brief bash ~/daily-brief/notify.sh "test alert"
+```
+
+It prints one line per channel and exits 1 if nothing took it.
 
 **Not applicable** when `BRIEF_MCP_SOURCE_DIR` is unset, or when the config has no
 bridge token — both gates are skipped entirely.

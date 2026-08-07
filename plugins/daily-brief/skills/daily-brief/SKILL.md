@@ -58,6 +58,37 @@ and Slack unchanged) and transformed only for email.
 Adding a channel means writing a new card and adding it to `KNOWN_CHANNELS` in
 `install.sh` — not touching the prompt.
 
+## Alerting — how it tells you it failed
+
+Delivery and alerting use **different transports on purpose**, and conflating them
+is the mistake to avoid.
+
+| | Transport | Why |
+|---|---|---|
+| Delivery | MCP servers / connectors | can read the channel back, so duplicates are detectable |
+| Alerts | incoming **webhooks** | survive the failure being announced |
+
+The thing an alert usually reports is a dead shared credential — and the Chat MCP,
+the Gmail MCP and the Slack connector all authenticate with it. Announcing a dead
+token through them cannot work. A webhook carries its own key in its URL.
+
+`notify.sh` fans one short message out to **every** service with a webhook
+configured (`$BASE/gchat-webhook.url`, `$BASE/slack-webhook.url`), then adds a
+desktop notification. Channels are independent — one failing does not stop the
+others, and it exits 0 if any channel took it.
+
+`run.sh` routes all three failure classes through it: dead bridge token (announced
+once per distinct token, latched by hash so a 15-minute retry loop is not a
+15-minute spam loop), no network before the budget expires, and every model attempt
+failing.
+
+**When setting someone up, ask about this explicitly if they schedule the brief.**
+With no webhook the only alert is a desktop notification, which nobody sees on a
+closed laptop — the failure mode is then "I noticed my brief never arrived", which
+is how it has actually gone wrong. **Email cannot serve here**: sending mail goes
+through the Gmail MCP and dies with the same token, so an email-only setup still
+needs a Chat or Slack webhook.
+
 ## Routing
 
 | They want | Go to |
@@ -69,6 +100,7 @@ Adding a channel means writing a new card and adding it to `KNOWN_CHANNELS` in
 | Change repos, name, time, sources | **Reconfigure** |
 | "Did it run?" | **Status** |
 | It did not arrive / arrived wrong | **Diagnose** |
+| To be told when it fails | **Alerting** |
 | "Do I have the right MCPs?" | **Check dependencies** |
 
 If `$BASE/config.env` does not exist they are not set up — go to **Setup** first,
