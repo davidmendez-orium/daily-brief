@@ -1,6 +1,6 @@
 ---
 name: daily-brief
-description: "Compose a personal daily work brief on demand, or set one up to run on a schedule — merging local git commits and agent-session activity with GitHub PRs, Jira tickets, Calendar, Gmail, and chat mentions, then delivering it to Google Chat, Slack, or email. Use when the user asks to be briefed or wants a standup or digest of their own recent work ('brief me', 'what did I do yesterday', 'run my brief'), or wants to install, configure, change the delivery channel, schedule, unschedule, or troubleshoot the daily brief. Triggers include 'brief me', 'daily brief', 'what did I ship yesterday', 'set up my daily brief', 'send my brief to Slack', 'email me my brief', 'run my brief now', 'schedule my brief', 'stop the daily brief', 'why didn't my brief arrive', '/daily-brief'."
+description: "Compose and deliver a personal daily work brief — local git commits and agent-session activity merged with GitHub PRs, Jira tickets, Calendar, Gmail, and chat mentions — or install, configure, change the delivery channel, schedule, unschedule, or troubleshoot it. Composing a brief POSTS it to a configured Google Chat space, Slack channel, or mailbox, so trigger ONLY on an explicit request that names the brief. Triggers are 'brief me', 'run my brief', 'send my brief', 'daily brief', '/daily-brief', 'set up my daily brief', 'send my brief to Slack', 'email me my brief', 'schedule my brief', 'stop the daily brief', 'why didn't my brief arrive'. Do NOT trigger on incidental questions about recent work such as 'what did I do yesterday', 'what did I ship', or 'catch me up' — those are conversation to answer directly, not a request to post a brief to a channel."
 ---
 
 # Daily brief
@@ -99,9 +99,18 @@ pairing it with a webhook, and do not describe an email-only setup as covered.
 
 ## Routing
 
+**Invoked with no argument — `/daily-brief` on its own — means brief me now, and
+deliver.** Go straight to **Brief me now**; do not present this table and do not
+ask which they meant. Someone who types the bare command wants the brief, and
+answering with a menu is the wrong response to an unambiguous request.
+
+Every other entry needs them to say so. Naming the skill is not on its own a
+request to post a brief — "is the daily brief scheduled?" is a question, not a
+trigger.
+
 | They want | Go to |
 |---|---|
-| **A brief now** — "brief me", "what did I do yesterday" | **Brief me now** |
+| **A brief now** — bare `/daily-brief`, "brief me", "run my brief" | **Brief me now** |
 | Install / set it up | **Setup** |
 | A different destination — Slack, email, several | **Change delivery** |
 | It to run on its own | **Schedule** / **Unschedule** |
