@@ -75,11 +75,39 @@ fi
 IS_MONDAY=false
 [ "$DOW" -eq 1 ] && IS_MONDAY=true
 
+# One entry per calendar day the brief covers, oldest first and ending with today.
+# The brief spans two days on any normal morning — yesterday's finished work and
+# whatever today has produced already — and four on a Monday. Reporting them as one
+# undifferentiated list reads as if it all happened at once, so the days are named
+# here rather than inferred downstream: `date` is what the git/session records
+# carry, `rel` is what the reader is told.
+DAYS_JSON="[]"
+i="$BACK"
+while [ "$i" -ge 0 ]; do
+  case "$i" in
+    0) rel=today ;;
+    1) rel=yesterday ;;
+    *) rel=earlier ;;
+  esac
+  DAYS_JSON="$(jq \
+      --arg d "$(d_ago "$i" %Y-%m-%d)" \
+      --arg l "$(d_ago "$i" '%a %b %d')" \
+      --arg w "$(d_ago "$i" '%A')" \
+      --arg r "$rel" \
+      '. + [{date: $d, label: $l, weekday: $w, rel: $r}]' <<<"$DAYS_JSON")"
+  i=$((i - 1))
+done
+
 # One --author flag per configured email; git ORs them.
 AUTHOR_FLAGS=()
 for a in "${AUTHORS[@]}"; do AUTHOR_FLAGS+=(--author="$a"); done
 
-# ---- git: your commits per repo in [START 00:00, TODAY 00:00) ----------------
+# ---- git: your commits per repo in [START 00:00, now] ------------------------
+# Today is included. It used to stop at midnight, which meant the local half could
+# never show work done this morning while the cloud half — GitHub and Jira, both
+# queried from START — showed it anyway. The two halves disagreed about what "the
+# window" meant, and the brief read as if today's PRs had landed with no commits
+# behind them. Each commit carries its own `date` for grouping.
 # Tab-delimited, parsed with an anchored capture whose last group swallows the rest
 # of the line. Deliberately NOT a 0x1f delimiter: an invisible control byte in a jq
 # program is silently destroyed by editors and copy-paste, and when it goes missing
@@ -89,7 +117,7 @@ git_repo_json() {
   local dir="$REPO_ROOT/$1"
   [ -d "$dir/.git" ] || { echo "[]"; return; }
   git -C "$dir" log "${AUTHOR_FLAGS[@]}" \
-      --since="$START 00:00" --until="$TODAY 00:00" \
+      --since="$START 00:00" \
       --pretty=format:'%H%x09%ad%x09%s' --date=short 2>/dev/null \
   | jq -R -s '
       split("\n") | map(select(length>0)) | map(
@@ -248,6 +276,7 @@ jq -n \
   --arg gen "$(date '+%Y-%m-%d %H:%M %Z')" \
   --arg start "$START" --arg end "$TODAY" --arg label "$WINDOW_LABEL" \
   --argjson mon "$IS_MONDAY" \
+  --argjson days "$DAYS_JSON" \
   --argjson identity "$IDENTITY_JSON" \
   --argjson local "$LOCAL_JSON" \
   --argjson git "$GIT_JSON" \
@@ -258,7 +287,7 @@ jq -n \
      generated_at: $gen,
      identity: $identity,
      local_capability: $local,
-     window: { start: $start, end: $end, label: $label, is_monday: $mon },
+     window: { start: $start, end: $end, label: $label, is_monday: $mon, days: $days },
      week_recap: $week,
      git: $git,
      claude_sessions: $sess,

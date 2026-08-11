@@ -58,8 +58,15 @@ That file carries everything person- and channel-specific, so read it first:
   verifying them** — no `github_get_viewer`.
 - `window` — `start` (yesterday, or last business day) and `end` (today). Use it
   for every date filter below.
+  **`window.days`** is the list of calendar days the brief covers, oldest first
+  and always ending with today: `{date, label, weekday, rel}` where `rel` is
+  `today`, `yesterday`, or `earlier`. Two entries on a normal day; four on a
+  Monday, which reaches back to Friday and picks up any weekend work. This is the
+  spine of *Shipped* — never collapse those days into one list.
 - `git` — LOCAL commits keyed by repo, each with `hash`, `date`, `subject`, `pr`.
-  **Report every commit** — do not summarise them away.
+  **Report every commit** — do not summarise them away. `date` is what assigns a
+  commit to a day in *Shipped*; today's commits are included, so a brief run at
+  midday shows this morning's work.
 - `claude_sessions`, `worktrees`, `week_recap` (Mondays only).
 - `local_capability` — what the local half could actually see. Read this before
   concluding anything from an empty `git`.
@@ -110,7 +117,9 @@ TURNS, not content — those are independent levers.
 Three searches, no more — the first covers open AND merged, so don't run a
 separate open-PR query. Substitute `identity.github.login` for LOGIN:
 - `is:pr author:LOGIN updated:>=<start>` — note merged vs open per result, and
-  review state where the payload carries it.
+  review state where the payload carries it. Keep each merged PR's
+  `pull_request.merged_at`: that date, not `updated_at`, is the day it belongs to
+  in *Shipped*. A PR merged Friday and commented on today is Friday's.
 - `is:pr review-requested:LOGIN state:open` — awaiting OWNER's review.
 - `is:pr mentions:LOGIN updated:>=<start>` — review comments/mentions.
 - Reconcile against the local `git` commits: each PR appears once, and a local
@@ -184,19 +193,35 @@ how the channels drift apart, so don't.
 
 Order exactly:
 
-*🗞️ Daily Brief — <Weekday>, <Mon DD>*  ·  _covers <window.label>_
+*🗞️ Daily Brief — <Weekday>, <Mon DD>*  ·  _covers <first day's label> → today_
 
 If `window.is_monday`, one line of _Last week:_ — commit/PR/ticket tallies from
 `week_recap`. Numbers, not narrative.
 
 *📅 Today* — `HH:MM title`, time-ordered. Mark the next one `←`. "None." if empty.
 
-*✅ Shipped* — everything that landed in the window:
-- Merged PRs: linked, with the ticket and a short what.
-- **Every commit**, grouped by repo: `` `hash` subject `` — including commits with
-  no PR. This is the git detail; do not collapse it into a count.
-- Jira transitions: `KEY-123: <from> → <to>`.
-- The local-data-unavailable line from step 0, if it applies.
+*✅ Shipped* — everything that landed in the window, **grouped by day**:
+
+- **One sub-heading per entry in `window.days`, in that order** — oldest first,
+  today last. Format it `_<rel capitalised>, <label>_`, so `_Yesterday, Mon Aug 10_`
+  and `_Today, Tue Aug 11_`; an `earlier` day is just its label, `_Sat Aug 08_`.
+  A Monday therefore reads Friday, Saturday, Sunday, Today.
+- **Assign every item to the day it happened**, by its own timestamp: a commit by
+  its `date`, a merged PR by its merge date, a Jira transition by the changelog
+  entry's date. An item whose day cannot be determined goes under the oldest day
+  rather than today — dating work forward is the error that misleads.
+- **Skip a day with nothing in it.** Weekends are usually empty and a row of
+  "None." per weekend day is noise. If *every* day is empty, one "None." for the
+  whole section.
+- Within a day: merged PRs first (linked, with the ticket and a short what), then
+  **every commit** grouped by repo — `` `hash` subject ``, including commits with
+  no PR. That is the git detail; do not collapse it into a count. Then Jira
+  transitions as `KEY-123: <from> → <to>`.
+- The local-data-unavailable line from step 0, if it applies, goes once at the end
+  of the section — not per day.
+
+Today's group is normally short or absent on a 07:45 run, and that is correct — do
+not pad it, and do not pull yesterday's work forward to fill it.
 
 *🔄 In flight* — open PRs (+ review state if known), in-progress tickets with
 status, active worktrees/branches.
@@ -215,6 +240,13 @@ their reply. Label honestly per the limitation above. "None." if empty.
 
 *🏷️ Tags* — GitHub review requests, PR/Jira/wiki mentions. `<link|ID> — Name` +
 what they want.
+
+**The three inbound sections stay flat — do not group them by day.** They are short
+and current, and splitting five items across four Monday headings buries them.
+Instead date each item that is *not* from today, at the end of the line: `(Mon)` on
+a normal day, `(Fri)` / `(Sat)` on a Monday. Items from today carry no marker, so
+an undated line means "today". Two people asking the same thing on different days
+is exactly what this makes visible.
 
 Rules: no invented items. **Keep the message under 4000 characters** — that is
 Google Chat's ceiling minus headroom, and holding to it for every channel is what
