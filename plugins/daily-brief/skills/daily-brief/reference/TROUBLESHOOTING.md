@@ -26,11 +26,34 @@ price.
 **Evidence.** `pmset -g log | grep -E "Sleep|DarkWake"` — not the app logs. The app
 logs only show the downstream symptom.
 
-**Mitigation, already in place.** `run.sh` polls the bridge host before spending
+**Mitigation, already in place.** `run.sh` polls the bridge before spending
 anything, and the wall clock keeps advancing across sleep, so the run resumes on
 wake instead of burning the budget. `caffeinate -i` is held only during real work —
 never while polling, so a sleeping laptop just resumes the poll on wake, which is
 the wanted behaviour on a plane.
+
+**The nastier variant: the machine slept *mid-run*.** The gate passed at 07:45, the
+laptop slept at 08:00, and attempts 2 and 3 ran on wake at 09:40 with the network
+still coming up. Those attempts do *not* announce a network problem. The stdio
+client answers `tools/list` with a live bridge fetch — once, no retry, no cache —
+so a server whose fetch fails **connects and serves zero tools** for the whole
+attempt. The agent then reports its sources as "no Chat MCP tool is connected in
+this session", or invents "the bridge token expired", and composes from whatever
+is left.
+
+**Do not trust that self-report.** Verify the credential by hand before renewing
+anything: `curl -s -X POST "$BRIDGE_BASE/chat" -H "X-Mcp-Bridge-Token: $TOKEN"
+-d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'`. The real evidence
+is the headless transcript — under `~/.claude/projects/-/` when launchd ran it,
+since the cwd is `/`. Grep it for `No matching deferred tools found`: a run with
+zero MCP tools shows the agent hunting for them over and over.
+
+**Fixed by** re-running the readiness gate before **every** attempt, and probing
+`tools/list` on every configured service rather than `initialize` on one — the
+bridge answers `initialize` without exercising the service, so it passed while the
+call the client actually makes was failing. `--strict-mcp-config` is passed too, so
+a degraded run cannot silently compose from unrelated connectors in the user's own
+config and report itself complete.
 
 **Deliberately not done.** `pmset repeat` to force a wake. Waking the machine every
 weekday morning to send a message is not worth it; a late brief is fine.
@@ -147,6 +170,13 @@ An agent session should trust its own tool list over this script.
   lets exactly one duplicate through, by design — the old subject no longer matches.
 - **One channel failed, others fine.** Correct behaviour. Channels are independent;
   the summary line counts each outcome.
+- **Run history says `ok` but nobody got a brief.** The runner reads the agent's own
+  report to decide success. `DELIVERED <date> (0 ok, 0 already, 1 failed)` announces
+  that nothing was delivered, but it still contains the word DELIVERED and a date —
+  matching on the marker alone scored that as success, so the run exited 0 and no
+  alert fired. The counts now outrank the marker, and the marker is only consulted
+  when no counts are present. If you extend the report format, keep the counts
+  parseable.
 
 ## 6. Delivered twice to the same channel
 
@@ -180,12 +210,20 @@ encoded paths. Fix the config, not the script.
 
 | Variable | Effect |
 |---|---|
-| `BRIEF_DRY_RUN=1` | network gate, credential probe, and collector, then stop — no spend, no delivery |
+| `BRIEF_DRY_RUN=1` | readiness gate and collector, then stop — no spend, no delivery |
 | `BRIEF_BASE` | run against a throwaway directory |
-| `BRIEF_GATE_POLL` / `BRIEF_GATE_MAX` | shorten the network wait |
+| `BRIEF_AGENT_CLI` | swap the CLI for a stub echoing a canned result JSON — exercises the whole success path, run-history row included, for free |
+| `BRIEF_GATE_POLL` / `BRIEF_GATE_MAX` | shorten the first readiness wait |
+| `BRIEF_REGATE_MAX` | shorten the per-attempt re-check |
 | `BRIEF_TOKEN_POLL` | shorten the credential re-check interval |
-| `BRIEF_WEBHOOK_FILE` | point the expiry alert somewhere harmless |
+| `BRIEF_GCHAT_WEBHOOK_FILE` | point the alert somewhere harmless |
 | `BRIEF_QUIET=1` | suppress the terminal mirror, log to file only |
+
+**`config.env` overrides your environment, not the other way round.** It assigns
+`BRIEF_*` unconditionally and `run.sh` sources it *after* reading the env, so
+`BRIEF_MCP_SOURCE_DIR=... bash run.sh` is silently ignored. Edit a copy of
+`config.env` inside the throwaway `BRIEF_BASE` instead. Getting this wrong points a
+"broken bridge" test at the real bridge and spends real money.
 
 ### Where the output goes
 

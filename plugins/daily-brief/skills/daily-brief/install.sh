@@ -54,7 +54,14 @@ if [ "$MODE" = status ]; then
   else
     echo "schedule:  off (manual only) — add it with --schedule"
   fi
-  if [ -f "$BASE/logs/cost.csv" ]; then
+  # runs.db carries duration and tool calls too, so prefer it and fall back to the
+  # CSV, which is written even where sqlite3 is missing.
+  if [ -f "$BASE/logs/runs.db" ] && command -v sqlite3 >/dev/null 2>&1; then
+    echo "last runs:"
+    sqlite3 -header -column "$BASE/logs/runs.db" \
+      'SELECT date, started_at, duration_s, attempts, model, tool_calls, tokens, round(cost_usd, 2) AS cost, outcome
+         FROM runs ORDER BY id DESC LIMIT 5' | sed 's/^/  /'
+  elif [ -f "$BASE/logs/cost.csv" ]; then
     echo "last runs:"; tail -5 "$BASE/logs/cost.csv" | sed 's/^/  /'
   else
     echo "last runs: none recorded"

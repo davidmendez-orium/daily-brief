@@ -287,9 +287,14 @@ plugin's `templates/` and `delivery/`, committed, so everyone gets them.
 bash $SKILL/install.sh --status
 ```
 
-Files, config, configured channels, whether a schedule is active, and the last
-five rows of `logs/cost.csv`. `schedule: off (manual only)` is a normal state, not
-a fault — don't report it as one.
+Files, config, configured channels, whether a schedule is active, and the last five
+runs — from `logs/runs.db` (date, start, duration, attempts, model, tool calls,
+tokens, cost, outcome), falling back to `logs/cost.csv` where sqlite3 is missing.
+`schedule: off (manual only)` is a normal state, not a fault — don't report it as
+one.
+
+Every run appends a row to both, aborted ones included, so a `SKIPPED_NO_NETWORK`
+that waited four hours is as visible as a delivery.
 
 ## Diagnose
 
