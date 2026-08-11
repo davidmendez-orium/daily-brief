@@ -137,7 +137,7 @@ the brief is lying about a quiet day — that is a bug in the run, not in the co
 **Symptom.** A section is empty, or a channel reports `FAILED`, and the underlying
 error is a missing or unauthorized tool rather than anything about the data.
 
-**Check first.** `bash "$SKILL/install.sh" --check-deps` maps this config's channels
+**Check first.** `bash "$BASE/install.sh" --check-deps` maps this config's channels
 and sources to the servers they need and reports each one. Exit `3` means something
 is unmet; the report carries the exact fix command.
 

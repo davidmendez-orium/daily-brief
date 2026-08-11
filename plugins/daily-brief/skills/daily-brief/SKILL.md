@@ -148,7 +148,7 @@ brief fails for a reason that smells like a missing tool.
 
 **Two checks, and they see different things.**
 
-1. `bash $SKILL/check-deps.sh` — maps the config's channels and sources to the
+1. `bash $BASE/check-deps.sh` — maps the config's channels and sources to the
    servers they need and reports each as connected / needs-auth / missing, with
    the exact command to fix it. Exit `0` satisfied, `3` unmet, `4` cannot tell.
    It asks the local agent CLI, so it is authoritative for Claude Code and
@@ -194,7 +194,7 @@ don't:
 
 > **Before your first brief:**
 > 1. `! claude mcp login "claude.ai Slack"` — Slack delivery fails without it
-> 2. Re-check: `bash $SKILL/install.sh --check-deps`
+> 2. Re-check: `bash $BASE/install.sh --check-deps`
 >
 > Google Chat and email are ready now; you can run a brief on those today.
 
@@ -207,6 +207,11 @@ cannot guess.
 
 1. **Lay down the files:** `bash $SKILL/install.sh`. On a first run this copies the
    config template and stops. Expected.
+
+   This is the only command that needs `$SKILL`. It copies itself, `check-deps.sh`,
+   `templates/`, `delivery/` and `reference/` into `$BASE`, so everything after it
+   runs from `$BASE/install.sh` — a stable path, unlike the plugin's, which carries
+   a commit hash and moves on every update. Give people the `$BASE` form.
 
 2. **Fill in `config.env`.** Derive what you can; ask only for the genuinely
    unknowable. In one batch:
@@ -225,7 +230,7 @@ cannot guess.
      their MCP config lives in a repo. Leave empty otherwise; the preflight is
      skipped and the agent's own config is used.
 
-3. **Install for real:** `bash $SKILL/install.sh`. Validates the config,
+3. **Install for real:** `bash $BASE/install.sh`. Validates the config,
    smoke-tests the collector, and runs the dependency check. **Schedules nothing.**
 
 4. **Resolve any unmet dependencies** — see **Check dependencies**. The installer
@@ -263,8 +268,8 @@ means a new server, and finding that out at delivery time is the expensive way.
 ## Schedule / Unschedule
 
 ```bash
-bash $SKILL/install.sh --schedule      # opt in  (macOS + local agent CLI)
-bash $SKILL/install.sh --unschedule    # opt out, keeps everything else
+bash $BASE/install.sh --schedule      # opt in  (macOS + local agent CLI)
+bash $BASE/install.sh --unschedule    # opt out, keeps everything else
 ```
 
 Re-running `--schedule` replaces the job rather than stacking a second one. To
@@ -273,18 +278,25 @@ brief still works on demand so they don't think they deleted it.
 
 ## Reconfigure
 
-Edit `$BASE/config.env`, then re-run `bash $SKILL/install.sh` to re-validate.
+Edit `$BASE/config.env`, then re-run `bash $BASE/install.sh` to re-validate.
 Changes take effect on the next run by themselves — except the schedule time,
 which needs `--schedule` again.
 
-Never edit `$BASE/collect.sh`, `$BASE/run.sh`, `$BASE/brief-prompt.md`, or
-`$BASE/delivery/` — the installer overwrites them. Behaviour changes belong in the
-plugin's `templates/` and `delivery/`, committed, so everyone gets them.
+Never edit anything in `$BASE` except `config.env` and the webhook files. Everything
+else — `collect.sh`, `run.sh`, `notify.sh`, `brief-prompt.md`, `install.sh`,
+`check-deps.sh`, `templates/`, `delivery/`, `reference/` — is a copy the installer
+overwrites, so an edit there survives exactly until the next install and then
+vanishes without a word. Behaviour changes belong in the plugin repo, committed, so
+everyone gets them.
+
+`$BASE/templates/` is the local source the contained installer copies from, not a
+place to develop. Editing it then running `$BASE/install.sh` does apply the change —
+and the next plugin install silently reverts it.
 
 ## Status
 
 ```bash
-bash $SKILL/install.sh --status
+bash $BASE/install.sh --status
 ```
 
 Files, config, configured channels, whether a schedule is active, and the last five

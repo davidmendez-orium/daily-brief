@@ -116,16 +116,33 @@ for f in collect.sh run.sh notify.sh brief-prompt.md; do
   cp "$TPL/$f" "$BASE/$f"
 done
 chmod +x "$BASE/collect.sh" "$BASE/run.sh" "$BASE/notify.sh"
-# Delivery cards travel with the brief so the headless runner and an agent session
-# resolve the same path for them.
-rm -rf "$BASE/delivery"
-cp -R "$SKILL_DIR/delivery" "$BASE/delivery"
-echo "installed collect.sh, run.sh, notify.sh, brief-prompt.md, delivery/ → $BASE"
+
+# ---- everything else needed to run, schedule, and diagnose -------------------
+# $BASE ends up self-contained: the installer, the dependency check, the templates
+# the scheduler reads, the delivery cards, and the troubleshooting reference all
+# live beside config.env. Nothing reaches back into the plugin, whose path carries
+# a commit hash and therefore moves on every update — a terminal command that
+# worked yesterday should not break because the plugin was refreshed.
+#
+# Skipped when the installer IS the contained copy. Every cp below would then be
+# copying a file onto itself, and the delivery refresh — which deletes before it
+# copies — would take the cards with it.
+if [ "$SKILL_DIR" != "$BASE" ]; then
+  cp "$SKILL_DIR/install.sh" "$SKILL_DIR/check-deps.sh" "$BASE/"
+  chmod +x "$BASE/install.sh" "$BASE/check-deps.sh"
+  for d in templates delivery reference; do
+    rm -rf "${BASE:?}/$d"
+    cp -R "$SKILL_DIR/$d" "$BASE/$d"
+  done
+  echo "installed collect.sh, run.sh, notify.sh, brief-prompt.md, install.sh, check-deps.sh, templates/, delivery/, reference/ → $BASE"
+else
+  echo "refreshed collect.sh, run.sh, notify.sh, brief-prompt.md from $BASE/templates"
+fi
 
 if [ "$NEW_CONFIG" = 1 ]; then
   echo
   echo "Stopping here: config.env is still the unedited template."
-  echo "Edit $BASE/config.env, then run: bash $SKILL_DIR/install.sh"
+  echo "Edit $BASE/config.env, then run: bash $BASE/install.sh"
   exit 0
 fi
 
@@ -204,7 +221,7 @@ if [ "$MODE" = install ]; then
     0) echo "Installed and ready. Nothing is scheduled — the brief runs when you ask." ;;
     3) echo "Installed, but NOT yet ready: the MCP dependencies above are unmet."
        echo "Resolve them (or switch those sources off in config.env), then re-check with:"
-       echo "  bash $SKILL_DIR/install.sh --check-deps" ;;
+       echo "  bash $BASE/install.sh --check-deps" ;;
     *) echo "Installed. MCP dependencies could not be checked from here — the agent"
        echo "running the skill will verify them in-session before the first brief." ;;
   esac
@@ -215,9 +232,9 @@ if [ "$MODE" = install ]; then
   echo
   if launchctl list "$LABEL" >/dev/null 2>&1; then
     echo "Note: a schedule is already active ($LABEL). It keeps running."
-    echo "Drop it with: bash $SKILL_DIR/install.sh --unschedule"
+    echo "Drop it with: bash $BASE/install.sh --unschedule"
   elif [ "$(uname -s)" = "Darwin" ]; then
-    echo "Want it every weekday morning?  bash $SKILL_DIR/install.sh --schedule"
+    echo "Want it every weekday morning?  bash $BASE/install.sh --schedule"
   else
     echo "Scheduling is macOS-only (launchd). On Linux, wire $BASE/run.sh into cron yourself."
   fi
@@ -263,5 +280,5 @@ if ! BRIEF_BASE="$BASE" bash "$BASE/notify.sh" "" >/dev/null 2>&1; then
 fi
 echo
 echo "Still runnable on demand:  bash $BASE/run.sh   (or /daily-brief in an agent session)"
-echo "Drop the schedule:         bash $SKILL_DIR/install.sh --unschedule"
+echo "Drop the schedule:         bash $BASE/install.sh --unschedule"
 echo "Watch a run:               tail -f $BASE/logs/$(date +%F).log"
