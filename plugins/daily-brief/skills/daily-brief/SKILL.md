@@ -1,6 +1,6 @@
 ---
 name: daily-brief
-description: "Compose and deliver a personal daily work brief — local git commits and agent-session activity merged with GitHub PRs, Jira tickets, Calendar, Gmail, and chat mentions — or install, configure, change the delivery channel, schedule, unschedule, or troubleshoot it. Composing a brief POSTS it to a configured Google Chat space, Slack channel, or mailbox, so trigger ONLY on an explicit request that names the brief. Triggers are 'brief me', 'run my brief', 'send my brief', 'daily brief', '/daily-brief', 'set up my daily brief', 'send my brief to Slack', 'email me my brief', 'schedule my brief', 'stop the daily brief', 'why didn't my brief arrive'. Do NOT trigger on incidental questions about recent work such as 'what did I do yesterday', 'what did I ship', or 'catch me up' — those are conversation to answer directly, not a request to post a brief to a channel."
+description: "Compose and deliver a personal daily work brief — local git commits and agent-session activity merged with GitHub PRs, Jira tickets, Calendar, Gmail, and chat mentions — or install, configure, change the delivery channel, schedule, unschedule, or troubleshoot it. Composing a brief POSTS it to a configured Google Chat space, Slack channel, or mailbox, so trigger ONLY on an explicit request that names the brief. Triggers are 'brief me', 'run my brief', 'send my brief', 'daily brief', '/daily-brief', '/daily-brief standup', 'draft my standup', 'standup me', 'set up my daily brief', 'send my brief to Slack', 'email me my brief', 'schedule my brief', 'stop the daily brief', 'why didn't my brief arrive'. The standup draft is the one mode that posts nothing — it prints and saves a file. Do NOT trigger on incidental questions about recent work such as 'what did I do yesterday', 'what did I ship', or 'catch me up' — those are conversation to answer directly, not a request to post a brief to a channel."
 ---
 
 # Daily brief
@@ -111,6 +111,7 @@ trigger.
 | They want | Go to |
 |---|---|
 | **A brief now** — bare `/daily-brief`, "brief me", "run my brief" | **Brief me now** |
+| **A standup draft** — `/daily-brief standup`, "standup me", "draft my standup" | **Standup** |
 | Install / set it up | **Setup** |
 | A different destination — Slack, email, several | **Change delivery** |
 | It to run on its own | **Schedule** / **Unschedule** |
@@ -147,6 +148,41 @@ can, and don't re-query to confirm something a payload already told you.
 
 Report per channel, exactly. If a channel fails, say which and why. Never report a
 delivery that did not happen.
+
+## Standup
+
+A standup draft, not a brief. Same sources, different question: a brief summarises
+a window, a standup splits work onto the day it **actually happened** — PR
+`mergedAt` / `createdAt` from `gh`, Jira status moves from each issue's changelog.
+The brief's window spans yesterday→now and labels the whole thing yesterday, which
+is wrong often enough that this exists.
+
+**It does not post.** Standups go into an existing thread, and no delivery channel
+here can reply into one. It prints, it writes a file, and it offers — it never
+assumes.
+
+1. `bash $BASE/standup.py` — facts only, no spend. `--days N` widens the lookback
+   (default: the last business day, so Monday looks back to Friday).
+   **Do not pass `--llm`** — that shells out to a second model to do the one thing
+   you are already here to do. It reads `BRIEF_GITHUB_REPOS` from `config.env` for
+   GitHub and speaks JSON-RPC to the Jira MCP client for tickets, so both halves
+   work without a separate token.
+2. Polish it yourself, under the script's own rules: keep every ticket key, PR
+   number and URL exactly as printed, keep the Yesterday/Today split exactly as
+   printed, and invent no work that is not listed. Tighten each line to plain
+   English, one line per item. The trailing `Waiting on clarification` placeholder
+   is not derivable from git or Jira — ask them what goes there, or drop it.
+3. Write the polished text to `$BASE/data/standup-YYYY-MM-DD.md` **and** print it
+   in the reply. Both, always: the file is what they paste from, the reply is what
+   they read. Re-running the same day overwrites — a standup has one true version.
+4. Then offer to post it, and **ask where**. Do not fall back to `BRIEF_DELIVERY`;
+   that is where the brief goes, which is not necessarily where standup goes. Take
+   a Google Chat space or a Slack channel from them, and if they name a *thread*,
+   say plainly that opening a new one is the only thing these tools can do.
+
+The script degrades rather than failing: an unauthenticated `gh` or an unreachable
+Jira prints a `warn:` line and yields a partial draft. Pass that gap on — a
+GitHub-only standup that reads as complete is worse than one labelled partial.
 
 ## Check dependencies
 
@@ -293,7 +329,7 @@ which needs `--schedule` again.
 
 Never edit anything in `$BASE` except `config.env` and the webhook files. Everything
 else — `collect.sh`, `run.sh`, `notify.sh`, `brief-prompt.md`, `install.sh`,
-`check-deps.sh`, `templates/`, `delivery/`, `reference/` — is a copy the installer
+`check-deps.sh`, `standup.py`, `templates/`, `delivery/`, `reference/` — is a copy the installer
 overwrites, so an edit there survives exactly until the next install and then
 vanishes without a word. Behaviour changes belong in the plugin repo, committed, so
 everyone gets them.

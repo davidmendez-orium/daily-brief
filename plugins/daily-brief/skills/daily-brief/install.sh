@@ -112,10 +112,10 @@ fi
 cp "$TPL/config.env.example" "$BASE/config.env.example"
 
 # ---- program files (always refreshed from the plugin) ------------------------
-for f in collect.sh run.sh notify.sh brief-prompt.md; do
+for f in collect.sh run.sh notify.sh standup.py brief-prompt.md; do
   cp "$TPL/$f" "$BASE/$f"
 done
-chmod +x "$BASE/collect.sh" "$BASE/run.sh" "$BASE/notify.sh"
+chmod +x "$BASE/collect.sh" "$BASE/run.sh" "$BASE/notify.sh" "$BASE/standup.py"
 
 # ---- everything else needed to run, schedule, and diagnose -------------------
 # $BASE ends up self-contained: the installer, the dependency check, the templates
@@ -134,9 +134,9 @@ if [ "$SKILL_DIR" != "$BASE" ]; then
     rm -rf "${BASE:?}/$d"
     cp -R "$SKILL_DIR/$d" "$BASE/$d"
   done
-  echo "installed collect.sh, run.sh, notify.sh, brief-prompt.md, install.sh, check-deps.sh, templates/, delivery/, reference/ → $BASE"
+  echo "installed collect.sh, run.sh, notify.sh, standup.py, brief-prompt.md, install.sh, check-deps.sh, templates/, delivery/, reference/ → $BASE"
 else
-  echo "refreshed collect.sh, run.sh, notify.sh, brief-prompt.md from $BASE/templates"
+  echo "refreshed collect.sh, run.sh, notify.sh, standup.py, brief-prompt.md from $BASE/templates"
 fi
 
 if [ "$NEW_CONFIG" = 1 ]; then
