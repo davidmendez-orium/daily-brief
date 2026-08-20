@@ -47,7 +47,8 @@ working check a retry double-posts.
 
 ## Notes
 
-- The space id is the bare id (no `spaces/` prefix) — e.g. `AAQAgqWbBcM`.
+- The space id is the bare id (no `spaces/` prefix) — the eleven-ish characters after
+  `spaces/` in the space's URL, e.g. `AAAAxxxxxxx`.
 - If this space is also scanned as an inbound source, the prompt already excludes
   it: the brief is not news to itself.
 - A Chat *incoming webhook* can post to a space without MCP, and that is what the

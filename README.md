@@ -54,6 +54,17 @@ Then, in a session:
 It walks you through setup the first time — deriving what it can, asking only for
 what it can't guess (chiefly *where* the brief should go).
 
+Everything the installer does afterwards runs from `~/daily-brief/install.sh`, which
+copies itself into that directory so no command you write down depends on a plugin
+path with a commit hash in it:
+
+| | |
+|---|---|
+| `--status` | what is installed, scheduled, and what the last runs cost |
+| `--check-deps` | the MCP dependency report (also printed by a plain install) |
+| `--schedule` / `--unschedule` | add or remove the weekday `launchd` job (macOS) |
+| `--uninstall` | remove the job and the installed files |
+
 ## How it works
 
 Two layers, split so the expensive one does as little as possible:
@@ -75,6 +86,34 @@ the brief is a config edit, never a prompt edit.
   optional network/credential preflight and a model fallback ladder.
 - **Scheduled** — opt in with `install.sh --schedule` for a weekday `launchd` job.
   macOS only, and never required.
+
+## Standup
+
+A different question, so a separate script rather than a flag on the brief:
+
+```
+/daily-brief standup
+```
+
+The brief summarises a window and labels the whole thing yesterday. A standup has to
+say which day each thing actually happened on, so `standup.py` buckets by real
+timestamps — PR `mergedAt` / `createdAt` from `gh`, Jira status moves from each
+issue's changelog.
+
+**It is the one mode that posts nothing.** Standups go into an existing thread and no
+delivery channel here can reply into one, so it prints, saves to
+`~/daily-brief/data/standup-YYYY-MM-DD.md`, and asks where it should go rather than
+inheriting `BRIEF_DELIVERY`.
+
+```bash
+bash ~/daily-brief/standup.py                 # facts only, no model spend
+bash ~/daily-brief/standup.py --days 3        # widen the lookback
+bash ~/daily-brief/standup.py --json          # machine-readable
+```
+
+Run it bare in a session and let the agent polish the output — `--llm` shells out to a
+second headless run, which is the terminal's option, not something worth paying for
+when a session is already holding the text.
 
 ## Delivery
 
@@ -150,6 +189,9 @@ There is no desktop notification.
 ## Requirements
 
 - `jq`, `git`, `curl`
+- `python3` for the standup draft only — the brief itself does not need it
+- `sqlite3` optional: `run.sh` records each run to it and falls back to
+  `logs/cost.csv` when it is missing
 - macOS or Linux (the collector probes for BSD vs GNU `date`/`stat`)
 - MCP servers for the sources you enable and the channel you deliver to
 - An agent CLI on `PATH` only for the terminal and scheduled paths
@@ -162,10 +204,13 @@ plugins/daily-brief/
 ├── .claude-plugin/plugin.json       the plugin manifest
 └── skills/daily-brief/
     ├── SKILL.md                     routing + the interactive path
-    ├── install.sh                   idempotent installer, --schedule/--status/…
+    ├── install.sh                   idempotent installer
     ├── check-deps.sh                MCP dependency report (also run by install)
+    ├── templates/collect.sh         the deterministic local scan
+    ├── templates/run.sh             headless wrapper: preflight, model ladder, cost log
+    ├── templates/standup.py         the standup draft — the one mode that posts nothing
     ├── templates/notify.sh          webhook fan-out for failure alerts
-    ├── templates/                   collect.sh, run.sh, brief-prompt.md, config
+    ├── templates/                   brief-prompt.md, config.env.example, launchd plist
     ├── delivery/                    gchat.md, slack.md, email.md
     └── reference/                   PLATFORMS.md, TROUBLESHOOTING.md
 ```
