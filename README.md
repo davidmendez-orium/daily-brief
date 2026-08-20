@@ -19,7 +19,7 @@ calendar, mail that needs a reply, chat mentions — into one message.
 - PROJ-118: In Review → Done
 
 🔄 In flight
-- PR #415 checkout analytics — 1 change requested from Riley
+- <link|#415> checkout analytics — 1 change requested from Riley
 
 🎯 Focus
 - Address Riley's review on #415

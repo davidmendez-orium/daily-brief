@@ -117,7 +117,8 @@ TURNS, not content — those are independent levers.
 Three searches, no more — the first covers open AND merged, so don't run a
 separate open-PR query. Substitute `identity.github.login` for LOGIN:
 - `is:pr author:LOGIN updated:>=<start>` — note merged vs open per result, and
-  review state where the payload carries it. Keep each merged PR's
+  review state where the payload carries it. Keep every PR's `html_url`: each one
+  is printed as a link, so it is a field you will print. Keep each merged PR's
   `pull_request.merged_at`: that date, not `updated_at`, is the day it belongs to
   in *Shipped*. A PR merged Friday and commented on today is Friday's.
 - `is:pr review-requested:LOGIN state:open` — awaiting OWNER's review.
@@ -225,6 +226,11 @@ not pad it, and do not pull yesterday's work forward to fill it.
 
 *🔄 In flight* — open PRs (+ review state if known), in-progress tickets with
 status, active worktrees/branches.
+
+**Every open PR carries its link** — `<url|#123>`, never a bare number. This
+section is what a reader acts on, and a PR they cannot click is a PR they do not
+review. A PR whose url you do not have is listed with its number and the note that
+the link is missing, not silently dropped.
 
 *🎯 Focus* — 3–5 bullets, imperative, verb first. Concrete next action only, no
 rationale. The one judgment section.
