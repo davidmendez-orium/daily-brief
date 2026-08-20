@@ -15,24 +15,24 @@ calendar, mail that needs a reply, chat mentions — into one message.
 - 14:30 1:1
 
 ✅ Shipped
-- humble: `f1730a41a` fix media attachments syncing to CT (#2649, merged)
-- PROJ-2224: In Review → Done
+- acme-web: `a1b2c3d4e` fix media attachments syncing (#412, merged)
+- PROJ-118: In Review → Done
 
 🔄 In flight
-- PR #2651 GA4 add_to_cart — 1 change requested from Sam
+- PR #415 checkout analytics — 1 change requested from Riley
 
 🎯 Focus
-- Address Sam's review on #2651
-- Reply to Priya re PROJ-2788 rate grain
+- Address Riley's review on #415
+- Reply to Dana re PROJ-121 rate grain
 
 📧 Email
-- Priya — Re: FX rate on order 🔴 reply
+- Dana — Re: FX rate on order 🔴 reply
 
 💬 Chat
-- eng-web/Sam — asked whether #2651 needs a QA pass before merge
+- eng-web/Riley — asked whether #415 needs a QA pass before merge
 
 🏷️ Tags
-- <link|#2644> — Alex requested your review
+- <link|#408> — Ash requested your review
 ```
 
 ## Install
