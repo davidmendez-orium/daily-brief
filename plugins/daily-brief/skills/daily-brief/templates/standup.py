@@ -178,10 +178,12 @@ def build(days=None):
         # mid-title is part of the sentence.
         title = re.sub(rf"^\W*{re.escape(key)}\W*", "", pr["title"], count=1).strip() \
             if key else pr["title"]
+        # The url, not the bare number: a standup is read to be acted on, and
+        # nobody looks up a PR by number to go review it.
         if pr["mergedAt"] and pr["mergedAt"] >= since:
-            add(pr["mergedAt"].date(), f"- Merged {label}(#{pr['number']}) — {title}")
+            add(pr["mergedAt"].date(), f"- Merged {label}({pr['url']}) — {title}")
         if pr["createdAt"] >= since and not pr["mergedAt"]:
-            add(pr["createdAt"].date(), f"- Opened {label}(#{pr['number']}) — {title}")
+            add(pr["createdAt"].date(), f"- Opened {label}({pr['url']}) — {title}")
         if pr["state"] == "OPEN" and not pr["isDraft"]:
             review.append(f"   • {label}{pr['url']}".replace("  ", " "))
 
@@ -238,9 +240,10 @@ def render(buckets, yday, today, review, in_progress):
     return "\n".join(lines)
 
 
-POLISH = """Rewrite this standup draft for a team chat. Keep every ticket key, PR
-number and URL exactly as given, keep the Yesterday/Today split exactly as given,
-and do not invent work that is not listed. Tighten each line to plain readable
+POLISH = """Rewrite this standup draft for a team chat. Keep every ticket key and
+PR url exactly as given -- never shorten a url to its number, the link is the point
+-- keep the Yesterday/Today split exactly as given, and do not invent work that is
+not listed. Tighten each line to plain readable
 English, one line per item. Drop the placeholder line if it is still unfilled.
 Return only the standup text."""
 

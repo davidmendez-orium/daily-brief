@@ -167,8 +167,9 @@ assumes.
    you are already here to do. It reads `BRIEF_GITHUB_REPOS` from `config.env` for
    GitHub and speaks JSON-RPC to the Jira MCP client for tickets, so both halves
    work without a separate token.
-2. Polish it yourself, under the script's own rules: keep every ticket key, PR
-   number and URL exactly as printed, keep the Yesterday/Today split exactly as
+2. Polish it yourself, under the script's own rules: keep every ticket key and PR
+   url exactly as printed — never shorten a url back to `#123`, the whole point is
+   that a reader can click through and review — keep the Yesterday/Today split exactly as
    printed, and invent no work that is not listed. Tighten each line to plain
    English, one line per item. The trailing `Waiting on clarification` placeholder
    is not derivable from git or Jira — ask them what goes there, or drop it.
