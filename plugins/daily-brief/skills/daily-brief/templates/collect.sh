@@ -30,6 +30,80 @@ read -r -a REPOS <<<"${BRIEF_REPOS:-}"
 read -r -a AUTHORS <<<"$BRIEF_GIT_AUTHORS"
 SESSION_DIR="${BRIEF_SESSION_DIR:-$HOME/.claude/projects}"
 
+# ---- repo discovery ----------------------------------------------------------
+# Which repos to mine was a hand-maintained list, and a hand-maintained list goes
+# stale in one direction only: silently. Clone a repo, do a week's work in it,
+# forget to add it here, and the brief reports a quiet week — a wrong answer
+# wearing the shape of an honest empty one.
+#
+# Leaving BRIEF_REPOS empty now DERIVES the set: scan BRIEF_REPO_ROOT for
+# checkouts and let BRIEF_GIT_AUTHORS decide what counts as yours. Discovery finds
+# candidates; the author filter is what makes them *your* work. An explicit
+# BRIEF_REPOS still wins, so existing configs behave exactly as before.
+#
+# Two portability constraints, both load-bearing:
+#   * `.git` is tested with -e, never -d — a worktree or submodule stores it as a
+#     FILE holding a `gitdir:` pointer, so a -d test skips precisely the checkouts
+#     most likely to hold in-flight work.
+#   * macOS ships bash 3.2, where "${arr[@]}" on an EMPTY array under `set -u` is
+#     a fatal unbound-variable error rather than an empty loop. Discovery makes an
+#     empty BRIEF_REPOS the normal case, so every expansion now carries the
+#     ${arr[@]+"${arr[@]}"} guard.
+REPO_DEPTH="${BRIEF_REPO_DEPTH:-4}"
+REPO_SOURCE="configured"
+read -r -a REPO_EXCLUDES <<<"${BRIEF_REPO_EXCLUDE:-}"
+
+# Discovery is deliberately greedy, so the brief never misses a new clone. That
+# makes an exclude list the other half of the mechanism: one root can hold work
+# from more than one engagement, and the repos you are no longer on are not a
+# quiet section — they are dozens of stale worktrees crowding out the section you
+# actually read. Patterns are globs matched against the path RELATIVE to the root
+# (e.g. "humblebundle-dev/*"), and apply to a configured BRIEF_REPOS too, so the
+# rule reads the same either way.
+repo_excluded() {   # <relative-path> -> 0 when it matches any BRIEF_REPO_EXCLUDE glob
+  local r="$1" pat
+  for pat in ${REPO_EXCLUDES[@]+"${REPO_EXCLUDES[@]}"}; do
+    [ -n "$pat" ] || continue
+    # shellcheck disable=SC2254  # unquoted on purpose: $pat is a glob, not a literal
+    case "$r" in $pat) return 0 ;; esac
+  done
+  return 1
+}
+
+discover_repos() {   # <root> <maxdepth> -> repo paths relative to root, one per line
+  local root="$1" depth="$2" p rel
+  find "$root" -maxdepth "$depth" \
+       \( -name node_modules -o -name vendor -o -name .terraform \
+          -o -name .venv -o -name .cache -o -name Library \) -prune -o \
+       -name .git -print 2>/dev/null \
+  | while IFS= read -r p; do
+      p="${p%/.git}"
+      rel="${p#"$root"}"; rel="${rel#/}"
+      printf '%s\n' "${rel:-.}"
+    done | sort -u
+}
+
+if [ -n "$REPO_ROOT" ] && [ "${#REPOS[@]}" -eq 0 ]; then
+  while IFS= read -r _r; do
+    [ -n "$_r" ] || continue
+    REPOS+=("$_r")
+  done < <(discover_repos "$REPO_ROOT" "$REPO_DEPTH")
+  REPO_SOURCE="discovered"
+fi
+
+REPOS_EXCLUDED=0
+if [ "${#REPO_EXCLUDES[@]}" -gt 0 ]; then
+  _kept=()
+  for _r in ${REPOS[@]+"${REPOS[@]}"}; do
+    if repo_excluded "$_r"; then
+      REPOS_EXCLUDED=$((REPOS_EXCLUDED + 1))
+    else
+      _kept+=("$_r")
+    fi
+  done
+  REPOS=(${_kept[@]+"${_kept[@]}"})
+fi
+
 mkdir -p "$DATA_DIR"
 
 # ---- portability shims -------------------------------------------------------
@@ -115,7 +189,7 @@ for a in "${AUTHORS[@]}"; do AUTHOR_FLAGS+=(--author="$a"); done
 # plausible-looking but entirely wrong result instead of an error.
 git_repo_json() {
   local dir="$REPO_ROOT/$1"
-  [ -d "$dir/.git" ] || { echo "[]"; return; }
+  [ -e "$dir/.git" ] || { echo "[]"; return; }
   git -C "$dir" log "${AUTHOR_FLAGS[@]}" \
       --since="$START 00:00" \
       --pretty=format:'%H%x09%ad%x09%s' --date=short 2>/dev/null \
@@ -132,9 +206,9 @@ git_repo_json() {
 GIT_JSON="{}"
 REPOS_SEEN=0
 if [ -n "$REPO_ROOT" ]; then
-  for r in "${REPOS[@]}"; do
+  for r in ${REPOS[@]+"${REPOS[@]}"}; do
     [ -n "$r" ] || continue
-    [ -d "$REPO_ROOT/$r/.git" ] && REPOS_SEEN=$((REPOS_SEEN + 1))
+    [ -e "$REPO_ROOT/$r/.git" ] && REPOS_SEEN=$((REPOS_SEEN + 1))
     GIT_JSON="$(jq --arg k "$r" --argjson v "$(git_repo_json "$r")" '. + {($k): $v}' <<<"$GIT_JSON")"
   done
 fi
@@ -145,9 +219,9 @@ if [ "$IS_MONDAY" = true ] && [ -n "$REPO_ROOT" ]; then
   WK_START="$(d_ago 7 %Y-%m-%d)"      # last Monday
   wk_obj="{}"
   wk_total=0
-  for r in "${REPOS[@]}"; do
+  for r in ${REPOS[@]+"${REPOS[@]}"}; do
     dir="$REPO_ROOT/$r"
-    [ -d "$dir/.git" ] || continue
+    [ -e "$dir/.git" ] || continue
     c="$(git -C "$dir" log "${AUTHOR_FLAGS[@]}" --since="$WK_START 00:00" --until="$TODAY 00:00" --oneline 2>/dev/null | wc -l | tr -d ' ')"
     wk_obj="$(jq --arg k "$r" --argjson v "$c" '. + {($k): $v}' <<<"$wk_obj")"
     wk_total=$((wk_total + c))
@@ -202,9 +276,9 @@ fi
 # ---- in-flight: git worktrees per repo ---------------------------------------
 WT_JSON="{}"
 if [ -n "$REPO_ROOT" ]; then
-  for r in "${REPOS[@]}"; do
+  for r in ${REPOS[@]+"${REPOS[@]}"}; do
     dir="$REPO_ROOT/$r"
-    [ -d "$dir/.git" ] || continue
+    [ -e "$dir/.git" ] || continue
     wl="$(git -C "$dir" worktree list --porcelain 2>/dev/null \
           | awk '/^worktree /{w=$2} /^branch /{printf "%s\t%s\n", w, $2}' \
           | jq -R -s '

@@ -184,10 +184,26 @@ if [ -n "${BRIEF_REPO_ROOT:-}" ]; then
     echo "  BRIEF_REPO_ROOT does not exist: $BRIEF_REPO_ROOT" >&2; ERR=1
   else
     FOUND_REPO=0
-    for r in ${BRIEF_REPOS:-}; do
-      [ -d "$BRIEF_REPO_ROOT/$r/.git" ] && FOUND_REPO=1
-    done
-    [ "$FOUND_REPO" = 1 ] || echo "  NOTE: no BRIEF_REPOS clone found under $BRIEF_REPO_ROOT — the brief will run cloud-only"
+    if [ -n "${BRIEF_REPOS:-}" ]; then
+      for r in ${BRIEF_REPOS}; do
+        # -e, not -d: a worktree/submodule stores .git as a FILE.
+        [ -e "$BRIEF_REPO_ROOT/$r/.git" ] && FOUND_REPO=1
+      done
+      [ "$FOUND_REPO" = 1 ] || echo "  NOTE: no BRIEF_REPOS clone found under $BRIEF_REPO_ROOT — the brief will run cloud-only"
+    else
+      # BRIEF_REPOS empty means discovery, not "no local half". Report what the
+      # scan would actually find, so an empty Shipped section is never a surprise
+      # that only shows up after the first brief has already been posted.
+      N_FOUND="$(find "$BRIEF_REPO_ROOT" -maxdepth "${BRIEF_REPO_DEPTH:-4}" \
+                   \( -name node_modules -o -name vendor -o -name .terraform \
+                      -o -name .venv -o -name .cache -o -name Library \) -prune -o \
+                   -name .git -print 2>/dev/null | wc -l | tr -d " ")"
+      if [ "${N_FOUND:-0}" -gt 0 ]; then
+        echo "  discovery: BRIEF_REPOS empty — $N_FOUND checkout(s) under $BRIEF_REPO_ROOT before BRIEF_REPO_EXCLUDE"
+      else
+        echo "  NOTE: BRIEF_REPOS empty and discovery found no checkouts under $BRIEF_REPO_ROOT — the brief will run cloud-only"
+      fi
+    fi
   fi
 else
   echo "  NOTE: BRIEF_REPO_ROOT empty — cloud-only brief (no git/session half)"
