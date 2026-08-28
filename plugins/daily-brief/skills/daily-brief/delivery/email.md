@@ -51,8 +51,16 @@ subject is already there, report `ALREADY_POSTED <TODAY>` and do not send.
 ## Send
 
 `gmail_send_email_as_agent` — `to` = the configured list, `subject` as above,
-HTML body. `me` is a valid recipient meaning the authenticated mailbox, and is the
-default.
+HTML body.
+
+**Use a real address, not `me`.** Some Gmail MCP servers accept the alias `me` for
+the authenticated mailbox; others reject it outright with `Invalid email address.
+Please provide a raw email address in the format 'user@example.com'` — observed
+against the claude.ai Gmail connector on 2026-08-28. A config carrying `me` looks
+valid, passes the installer, and fails only at send time on the first real run.
+So set `BRIEF_EMAIL_TO` to the owner's actual address. If you find `me` there and
+the send is rejected, that is the cause — substitute the owner's address, say that
+you did, and get the config corrected rather than silently papering over it.
 
 ## Notes
 
