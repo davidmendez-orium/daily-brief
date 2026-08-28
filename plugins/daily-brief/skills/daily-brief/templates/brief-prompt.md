@@ -174,14 +174,39 @@ awaiting their reply. OWNER's Chat user id is `identity.delivery.gchat.user_id`.
 (00:00–23:59 local) → the *Today* list. Do not fetch yesterday's events; nothing
 in the brief uses them.
 
-**Gmail** (`sources.gmail`). Mail that genuinely needs OWNER.
-- `gmail_search`, `max_results=10`, query: `newer_than:2d (is:important OR
+**Gmail** (`sources.gmail`). This section is a **triage, not an inbox dump.** A
+list where everything is 👀 has done no work: the one mail that needed OWNER is
+sitting in it at the same weight as a 2FA receipt.
+- `gmail_search`, `max_results=15`, query: `newer_than:2d (is:important OR
   is:starred OR label:inbox is:unread)` followed by `identity.gmail.exclude`
   verbatim.
 - Excluding those notification senders in the QUERY is deliberate — they surface
-  in *Tags* from the source of truth. Human-written mail only.
-- **Anything that needs a reply must appear.** Flag 🔴 reply vs 👀 read; put every
-  🔴 in the list before trimming any 👀.
+  in *Tags* from the source of truth.
+- Sort every thread into exactly one of three buckets. **The test is what the mail
+  asks of OWNER, never who sent it** — an automated sender can still be asking for
+  something, and a human can still be sending a receipt:
+  - 🔴 **Needs OWNER** — a reply, decision, review, approval, a form to fill, a
+    deadline to meet. A machine-sent nudge that OWNER must personally act on
+    ("write your weekly update", "your approval is required") is 🔴, not noise.
+  - 👀 **Read** — asks nothing, but changes something OWNER should know: a
+    decision announced, an outage, a policy change, or a human reply that closes a
+    loop OWNER opened.
+  - **Dropped** — transactional exhaust that asks nothing and changes nothing.
+- **Drop these outright** — do not list them, count them:
+  - Confirmations and receipts for an action already completed: "2FA enabled",
+    "your seat was upgraded", "password changed", "payment received".
+  - Ticket-system acknowledgements ("Request received, INC-1234"). Only a
+    *resolution* is reportable, and only when it still needs something.
+  - Digests, recommendation round-ups, "your team is working on these pages".
+  - Auto-generated meeting notes and recording-ready mail.
+  - Calendar invitations, updates and cancellations — *Today* owns the calendar,
+    and listing them here reports the same event twice.
+  - Marketing, product announcements, newsletters.
+- **Never drop silently.** End the section with `_N automated/no-action mails not
+  listed._` A triage that hides its own discards is indistinguishable from a
+  scan that missed them.
+- A thread whose newest message is from someone else AND asks OWNER anything is
+  🔴, even if OWNER replied earlier in it.
 
 **Best-effort extras**, if the tools happen to be available: pages or comments
 mentioning OWNER in a wiki (Confluence), and a memory store queried for notes or
@@ -249,9 +274,11 @@ rationale. The one judgment section.
 
 *📝 Notes* — action items OWNER left themselves, not already in Focus. Skip if none.
 
-*📧 Email* — `Sender — subject`, 🔴 reply / 👀 read. Every 🔴 listed. A direct
-question, a doc shared for comment, or anything addressed to OWNER personally is
-🔴 — an all-👀 list means you under-classified; re-check before settling on it.
+*📧 Email* — `Sender — subject`, 🔴 needs you / 👀 read, **every 🔴 first**. A
+direct question, a doc shared for comment, an approval, or anything addressed to
+OWNER personally is 🔴. Every 🔴 is listed and is never trimmed to save space.
+Close the section with the dropped count from step 1. If nothing survives triage,
+write "None." and still give the count — a quiet inbox is a result, not a gap.
 
 *💬 Chat* — messages mentioning OWNER (`space/sender — gist`) and DMs awaiting
 their reply. Label honestly per the limitation above. "None." if empty.
