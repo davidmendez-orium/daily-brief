@@ -1,1 +1,7 @@
 .DS_Store
+
+# Never commit a filled-in config: it carries channel ids and personal
+# identifiers. Only the template (config.env.example) belongs in the repo.
+config.env
+config.env.bak-*
+config.env.corrupted-*
