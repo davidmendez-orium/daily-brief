@@ -170,6 +170,29 @@ awaiting their reply. OWNER's Chat user id is `identity.delivery.gchat.user_id`.
   approximated as "latest message isn't OWNER's". If you list any, label the
   section honestly as awaiting-reply, not unread.
 
+**Slack** (`sources.slack`). Same two questions as Chat: what mentions OWNER, and
+what is waiting on a reply. OWNER's Slack id is `identity.delivery.slack.user_id`.
+Tool names differ between integrations — find the search/read pair, don't assume.
+- One search: `to:me after:<start>`, `sort=timestamp`, `include_context=false`,
+  `limit=20`. `to:me` covers both @-mentions and DMs addressed to OWNER.
+- **Collapse to one line per conversation, never one per message.** A chatty
+  thread returns 10+ hits and will otherwise crowd out everything else in the
+  section — report the conversation and its latest message, not its transcript.
+- **Awaiting reply = the conversation's newest message is not OWNER's.** If the
+  newest is OWNER's, the ball is not in their court; drop it.
+- **Triage exactly as Gmail above**, and for the same reason:
+  - 🔴 someone asked OWNER a question, or is blocked on them.
+  - 👀 a decision or answer OWNER should know, needing nothing.
+  - **Dropped**, counted not listed: app/bot DMs (Lattice, Google Calendar,
+    standup bots — an app DM is not a person waiting), and social threads with no
+    ask in them. Ending on a `:D` is not an action item.
+- **Deduplicate against Gmail.** The same nudge often arrives as both a Slack app
+  DM and a mail; report it once, in *Email*, and drop the Slack copy.
+- Skip `identity.delivery.slack.channel` when the brief is delivered there — that
+  channel is this report, not inbound.
+- Slack has no per-user unread state exposed here either, so label the section
+  awaiting-reply, never "unread".
+
 **Calendar** (`sources.calendar`). Primary calendar, today's events only
 (00:00–23:59 local) → the *Today* list. Do not fetch yesterday's events; nothing
 in the brief uses them.
@@ -280,11 +303,17 @@ OWNER personally is 🔴. Every 🔴 is listed and is never trimmed to save spac
 Close the section with the dropped count from step 1. If nothing survives triage,
 write "None." and still give the count — a quiet inbox is a result, not a gap.
 
-*💬 Chat* — messages mentioning OWNER (`space/sender — gist`) and DMs awaiting
-their reply. Label honestly per the limitation above. "None." if empty.
+*💬 Chat* — Google Chat and Slack together, one flat list, each line prefixed
+with its platform: `Slack #channel/Sam — gist` or `Chat space/Priya — gist`. Both
+mentions of OWNER and conversations awaiting their reply, 🔴 / 👀 as in *Email*,
+🔴 first. **Report the actual exchange** — who said what, and any ticket or link
+in it — not merely that a conversation happened. Close with the dropped count when
+anything was dropped. Label honestly per the limitation above: awaiting-reply, not
+unread. "None." if empty.
 
-*🏷️ Tags* — GitHub review requests, PR/Jira/wiki mentions. `<link|ID> — Name` +
-what they want.
+*🏷️ Tags* — GitHub review requests, PR/Jira/wiki mentions, and any Slack or
+Chat message that @-mentions OWNER by name in a CHANNEL (a DM belongs in *Chat*,
+not here). `<link|ID> — Name` + what they want.
 
 **The three inbound sections stay flat — do not group them by day.** They are short
 and current, and splitting five items across four Monday headings buries them.

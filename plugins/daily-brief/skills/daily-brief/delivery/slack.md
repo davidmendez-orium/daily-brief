@@ -58,5 +58,9 @@ converting between them.
 - **Unverified end to end.** This card was written against the Slack integration
   contract, not against a live authenticated Slack. Treat the first real run as a
   test: confirm the message renders (links especially) before trusting it.
-- Slack is a delivery target only. Scanning Slack as an inbound *source* — your
-  mentions, unread DMs — is not implemented; `identity.sources` has no slack key.
+- Slack is **both** a delivery target and, since `BRIEF_SOURCE_SLACK` exists, an
+  inbound source: `identity.sources.slack` gates a `to:me` scan for mentions and
+  conversations awaiting a reply. The two are independent — delivering here does
+  not require scanning, and scanning does not require delivering. When the brief
+  is delivered to a Slack channel, the inbound scan skips that channel, or the
+  brief starts reporting itself.

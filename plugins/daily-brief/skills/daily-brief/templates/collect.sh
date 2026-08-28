@@ -314,6 +314,7 @@ IDENTITY_JSON="$(jq -n \
   --argjson src_jira "${BRIEF_SOURCE_JIRA:-true}" \
   --argjson src_github "${BRIEF_SOURCE_GITHUB:-true}" \
   --argjson src_calendar "${BRIEF_SOURCE_CALENDAR:-true}" \
+  --argjson src_slack "${BRIEF_SOURCE_SLACK:-false}" \
   '{
      display_name: $name,
      watermark: $watermark,
@@ -330,18 +331,29 @@ IDENTITY_JSON="$(jq -n \
      },
      sources: {
        gchat: $src_gchat, gmail: $src_gmail, jira: $src_jira,
-       github: $src_github, calendar: $src_calendar
+       github: $src_github, calendar: $src_calendar, slack: $src_slack
      }
    }')"
 
 # What the local half could actually see. The prompt uses this to decide whether a
 # thin *Shipped* is a real quiet day or just a machine that cannot see the repos.
+# `repo_source` distinguishes a list someone chose from one the scan derived. It
+# matters for the same reason git_repos_found does: "discovered 0 repos under
+# ~/dev" is a broken root, while "configured 4, found 0" is a wrong list — and
+# both otherwise reach the prompt as an indistinguishable quiet day.
+REPOS_JSON="$(printf '%s\n' ${REPOS[@]+"${REPOS[@]}"} | jq -R -s 'split("\n")|map(select(length>0))')"
+
 LOCAL_JSON="$(jq -n \
   --argjson repos_found "$REPOS_SEEN" \
   --argjson sessions "$SESSIONS_AVAILABLE" \
   --arg root "$REPO_ROOT" \
+  --arg repo_source "$REPO_SOURCE" \
+  --argjson repos "$REPOS_JSON" \
+  --argjson repos_excluded "$REPOS_EXCLUDED" \
   --arg platform "$(uname -s)" \
   '{ git_repos_found: $repos_found, repo_root: $root,
+     repo_source: $repo_source, repos: $repos,
+     repos_excluded: $repos_excluded,
      sessions_available: $sessions, platform: $platform }')"
 
 # ---- assemble ----------------------------------------------------------------
