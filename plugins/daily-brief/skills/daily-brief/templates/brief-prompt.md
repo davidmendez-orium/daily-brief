@@ -67,7 +67,10 @@ That file carries everything person- and channel-specific, so read it first:
   **Report every commit** — do not summarise them away. `date` is what assigns a
   commit to a day in *Shipped*; today's commits are included, so a brief run at
   midday shows this morning's work.
-- `claude_sessions`, `worktrees`, `week_recap` (Mondays only).
+- `claude_sessions` — agent sessions active in the window: `{project, prompt,
+  last_active, assistant_msgs}`. This is the record of work that produced no
+  commit, and on a day of research, review or repo-wrangling it is the ONLY
+  evidence the day happened. `worktrees`, `week_recap` (Mondays only).
 - `local_capability` — what the local half could actually see. Read this before
   concluding anything from an empty `git`.
 
@@ -218,6 +221,15 @@ If `window.is_monday`, one line of _Last week:_ — commit/PR/ticket tallies fro
   **every commit** grouped by repo — `` `hash` subject ``, including commits with
   no PR. That is the git detail; do not collapse it into a count. Then Jira
   transitions as `KEY-123: <from> → <to>`.
+- **A day with real activity but no commits is not an empty day.** If a day has no
+  PR, commit or transition, but `claude_sessions` holds entries whose
+  `last_active` falls on it, add one line under that day:
+  `_Worked on:_ <project> — <short phrase from its prompt>`, at most four, busiest
+  first by `assistant_msgs`. Exploration, pulling and reading repos, design work
+  and attempts that were abandoned are all real work that leaves no commit behind,
+  and a day of it rendered as "None." is the same wrong answer as an unscanned
+  repo — it just looks honest. **Never present these as shipped**: they are what
+  was worked on, not what landed, and the wording must keep that distinction.
 - The local-data-unavailable line from step 0, if it applies, goes once at the end
   of the section — not per day.
 
