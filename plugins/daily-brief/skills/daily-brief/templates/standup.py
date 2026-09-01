@@ -146,6 +146,24 @@ def ticket_of(text):
     return m.group(1) if m else None
 
 
+def strip_key(title, key):
+    """Drop <key> from a PR title -- the caller already prints it as a label.
+
+    Only where the key is a tag rather than prose: leading ("KEY-1 do the
+    thing", "[KEY-1] do the thing"), or trailing in brackets, which is how a
+    conventional-commit title carries it ("feat(x): do the thing (KEY-1)").
+    A key mentioned mid-sentence is part of the sentence and is left alone.
+    """
+    if not key:
+        return title
+    k = re.escape(key)
+    out = re.sub(rf"^\W*{k}\W*", "", title, count=1)
+    out = re.sub(rf"\s*[(\[]{k}[)\]]\s*[.:]?\s*$", "", out, count=1).strip()
+    # A title that was nothing but the key leaves the reader with a dash and
+    # blank space; keep the original instead.
+    return out or title
+
+
 # ---- assembly ----------------------------------------------------------------
 
 def build(days=None):
@@ -173,11 +191,7 @@ def build(days=None):
     for pr in prs:
         key = ticket_of(pr["title"]) or ""
         label = f"{key} " if key else ""
-        # PR titles usually lead with the key, bracketed or not; don't print it
-        # twice. Only strip it where it actually leads -- a key mentioned
-        # mid-title is part of the sentence.
-        title = re.sub(rf"^\W*{re.escape(key)}\W*", "", pr["title"], count=1).strip() \
-            if key else pr["title"]
+        title = strip_key(pr["title"], key)
         # The url, not the bare number: a standup is read to be acted on, and
         # nobody looks up a PR by number to go review it.
         if pr["mergedAt"] and pr["mergedAt"] >= since:
