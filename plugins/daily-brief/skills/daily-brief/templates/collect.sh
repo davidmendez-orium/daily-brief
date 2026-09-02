@@ -187,10 +187,13 @@ for a in "${AUTHORS[@]}"; do AUTHOR_FLAGS+=(--author="$a"); done
 # program is silently destroyed by editors and copy-paste, and when it goes missing
 # `split` splits on the empty string — i.e. into single characters — which yields a
 # plausible-looking but entirely wrong result instead of an error.
+# --all, not HEAD: a repo parked on some other branch (a docs branch, a stale
+# feature branch, or a ticket worktree sharing this object store) hid every commit
+# on the branch actually being worked, and the local half reported a quiet day.
 git_repo_json() {
   local dir="$REPO_ROOT/$1"
   [ -e "$dir/.git" ] || { echo "[]"; return; }
-  git -C "$dir" log "${AUTHOR_FLAGS[@]}" \
+  git -C "$dir" log --all "${AUTHOR_FLAGS[@]}" \
       --since="$START 00:00" \
       --pretty=format:'%H%x09%ad%x09%s' --date=short 2>/dev/null \
   | jq -R -s '
@@ -222,7 +225,7 @@ if [ "$IS_MONDAY" = true ] && [ -n "$REPO_ROOT" ]; then
   for r in ${REPOS[@]+"${REPOS[@]}"}; do
     dir="$REPO_ROOT/$r"
     [ -e "$dir/.git" ] || continue
-    c="$(git -C "$dir" log "${AUTHOR_FLAGS[@]}" --since="$WK_START 00:00" --until="$TODAY 00:00" --oneline 2>/dev/null | wc -l | tr -d ' ')"
+    c="$(git -C "$dir" log --all "${AUTHOR_FLAGS[@]}" --since="$WK_START 00:00" --until="$TODAY 00:00" --oneline 2>/dev/null | wc -l | tr -d ' ')"
     wk_obj="$(jq --arg k "$r" --argjson v "$c" '. + {($k): $v}' <<<"$wk_obj")"
     wk_total=$((wk_total + c))
   done
