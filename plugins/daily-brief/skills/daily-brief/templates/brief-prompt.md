@@ -98,6 +98,10 @@ Local + cloud on every source — merge, don't duplicate. **Run a source only if
 off deliberately. If an enabled source errors, note it in one line under its
 section and continue; never abort the whole brief.
 
+**One exception: *Chat* is a capability, not a source.** It is answered by whichever
+messaging platform can answer it, so it follows the ladder in **Chat** below rather
+than a single flag. Every other source is gated exactly as stated here.
+
 **Efficiency — this is a HARD requirement, not a preference.**
 Every turn re-reads all prior tool output, so cost ≈ turns × context. A run that
 takes 50 turns costs 4× the same run in 12. Therefore:
@@ -152,46 +156,82 @@ Two searches, not three — one covers both worked-in-window and in-flight:
   real transitions as `KEY-123: In Progress → Done`. Say how many you skipped if
   you hit the cap.
 
-**Google Chat** (`sources.gchat`). Two things: messages mentioning OWNER, and DMs
-awaiting their reply. OWNER's Chat user id is `identity.delivery.gchat.user_id`.
-- `chat_list_spaces` (`page_size=100`). Each space carries **`lastActiveTime`** —
-  use it: scan ONLY spaces whose `lastActiveTime >= <start>`. That is exact, so
-  there is no need to cap or guess, and no space with activity gets skipped.
-- Then in ONE parallel batch, `chat_list_messages` on each of those with
-  `filter='createTime > "<start>T00:00:00+00:00"'`, `page_size=10`.
-- Report (a) messages whose text mentions OWNER or @-mentions their user id, and
-  (b) DMs whose LATEST message is from someone else — i.e. awaiting their reply.
-- **Report the actual exchange**, not just that one happened: who said what, and
-  any ticket/link in it.
-- Skip `identity.delivery.gchat.space_id` if the brief is delivered there — that
-  space is this report, not inbound.
-- Ignore `singleUserBotDm` spaces — those are bots, not people.
-- **LIMITATION:** the Chat API exposes no per-user unread state. "Unread" is
-  approximated as "latest message isn't OWNER's". If you list any, label the
-  section honestly as awaiting-reply, not unread.
+**Chat** — one capability, several possible platforms, tried in order.
 
-**Slack** (`sources.slack`). Same two questions as Chat: what mentions OWNER, and
-what is waiting on a reply. OWNER's Slack id is `identity.delivery.slack.user_id`.
-Tool names differ between integrations — find the search/read pair, don't assume.
-- One search: `to:me after:<start>`, `sort=timestamp`, `include_context=false`,
-  `limit=20`. `to:me` covers both @-mentions and DMs addressed to OWNER.
-- **Collapse to one line per conversation, never one per message.** A chatty
-  thread returns 10+ hits and will otherwise crowd out everything else in the
-  section — report the conversation and its latest message, not its transcript.
+Two questions, identical on every platform: **what mentions OWNER**, and **what is
+waiting on their reply**. A brief that reports "None." because the *first* platform
+was unreachable has told OWNER something false about a second one nobody looked at.
+So this is a **ladder, not a flag**:
+
+1. Build the rung list. **Enabled rungs first** — every platform whose
+   `identity.sources.<name>` is true, in the order below. **Then the rest as
+   fallbacks**, regardless of their flag: a platform is usually switched off
+   because it was unavailable *when the config was written*, and availability is
+   exactly the thing that changes.
+2. Walk the rungs in order. A rung is **usable** only if its real scan tools are
+   present — a connector exposing nothing but an `authenticate` tool is NOT usable,
+   and neither is one whose search call errors.
+   **This costs no turns, and the turn budget above still holds.** Presence is read
+   off the tool list you can already see — never spend a call probing for it. So
+   pick the first present rung and put ONLY that rung's scan in the round-1
+   parallel batch. A rung that fails at *scan* time is the one case the ladder needs
+   a second turn for: put the next rung's scan in round 2, alongside the other
+   round-2 work. One extra turn, and only on a day something is broken.
+3. **Stop at the first rung that completes a scan**, whether or not it found
+   anything. A successful scan returning nothing is the answer "None.", and it ends
+   the walk — do not keep going to pad the section.
+4. If a rung is unusable, **go to the next one silently**. Do not report a per-rung
+   failure while a later rung is still untried.
+5. Only when **every** rung is exhausted does the section report unavailability —
+   and it then names each platform tried and why, so "nobody looked" never reads as
+   "nothing happened":
+   `_Chat unavailable: Slack not authenticated, Google Chat has no server._`
+
+Report which rung answered when it was NOT the first enabled one:
+`_Scanned Google Chat; Slack was unavailable._` A reader who thinks their primary
+platform was scanned, when it wasn't, is worse off than one told plainly.
+
+**Known rungs, in preference order.** Adding a platform means adding a rung here,
+not editing anything else. Tool names differ between integrations — **discover the
+search/read pair, never assume names.**
+
+- **Slack** (`sources.slack`). OWNER's id is `identity.delivery.slack.user_id`.
+  - One search: `to:me after:<start>`, `sort=timestamp`, `include_context=false`,
+    `limit=20`. `to:me` covers both @-mentions and DMs addressed to OWNER.
+  - **Collapse to one line per conversation, never one per message.** A chatty
+    thread returns 10+ hits and will otherwise crowd out the section — report the
+    conversation and its latest message, not its transcript.
+  - Skip `identity.delivery.slack.channel` when the brief is delivered there — that
+    channel is this report, not inbound.
+- **Google Chat** (`sources.gchat`). OWNER's id is
+  `identity.delivery.gchat.user_id`.
+  - `chat_list_spaces` (`page_size=100`). Each space carries **`lastActiveTime`** —
+    use it: scan ONLY spaces whose `lastActiveTime >= <start>`. That is exact, so
+    there is no need to cap or guess, and no space with activity gets skipped.
+  - Then in ONE parallel batch, `chat_list_messages` on each of those with
+    `filter='createTime > "<start>T00:00:00+00:00"'`, `page_size=10`.
+  - Report (a) messages whose text mentions OWNER or @-mentions their user id, and
+    (b) DMs whose LATEST message is from someone else — i.e. awaiting their reply.
+  - Skip `identity.delivery.gchat.space_id` if the brief is delivered there.
+  - Ignore `singleUserBotDm` spaces — those are bots, not people.
+
+**Rules that apply to every rung**, so a platform swap never changes the output:
+
 - **Awaiting reply = the conversation's newest message is not OWNER's.** If the
   newest is OWNER's, the ball is not in their court; drop it.
-- **Triage exactly as Gmail above**, and for the same reason:
+- **Report the actual exchange** — who said what, and any ticket or link in it —
+  not merely that a conversation happened.
+- **Triage exactly as Gmail below**, and for the same reason:
   - 🔴 someone asked OWNER a question, or is blocked on them.
   - 👀 a decision or answer OWNER should know, needing nothing.
   - **Dropped**, counted not listed: app/bot DMs (Lattice, Google Calendar,
     standup bots — an app DM is not a person waiting), and social threads with no
     ask in them. Ending on a `:D` is not an action item.
-- **Deduplicate against Gmail.** The same nudge often arrives as both a Slack app
-  DM and a mail; report it once, in *Email*, and drop the Slack copy.
-- Skip `identity.delivery.slack.channel` when the brief is delivered there — that
-  channel is this report, not inbound.
-- Slack has no per-user unread state exposed here either, so label the section
-  awaiting-reply, never "unread".
+- **Deduplicate against Gmail.** The same nudge often arrives as both a chat app DM
+  and a mail; report it once, in *Email*, and drop the chat copy.
+- **LIMITATION:** no platform here exposes per-user unread state. "Unread" is
+  approximated as "latest message isn't OWNER's". Label the section honestly as
+  awaiting-reply, never unread.
 
 **Calendar** (`sources.calendar`). Primary calendar, today's events only
 (00:00–23:59 local) → the *Today* list. Do not fetch yesterday's events; nothing
@@ -303,10 +343,11 @@ OWNER personally is 🔴. Every 🔴 is listed and is never trimmed to save spac
 Close the section with the dropped count from step 1. If nothing survives triage,
 write "None." and still give the count — a quiet inbox is a result, not a gap.
 
-*💬 Chat* — Google Chat and Slack together, one flat list, each line prefixed
+*💬 Chat* — whatever the *Chat* ladder scanned, one flat list, each line prefixed
 with its platform: `Slack #channel/Sam — gist` or `Chat space/Priya — gist`. Both
 mentions of OWNER and conversations awaiting their reply, 🔴 / 👀 as in *Email*,
-🔴 first. **Report the actual exchange** — who said what, and any ticket or link
+🔴 first. If a fallback rung answered, or every rung was exhausted, carry that
+one-line note from the ladder here. **Report the actual exchange** — who said what, and any ticket or link
 in it — not merely that a conversation happened. Close with the dropped count when
 anything was dropped. Label honestly per the limitation above: awaiting-reply, not
 unread. "None." if empty.
