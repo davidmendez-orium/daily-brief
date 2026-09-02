@@ -121,17 +121,26 @@ Completeness still wins over cost: never drop a required item to save tokens. Cu
 TURNS, not content — those are independent levers.
 
 **GitHub** (`sources.github`). Search `identity.github.repos`, `per_page=15`.
-Three searches, no more — the first covers open AND merged, so don't run a
-separate open-PR query. Substitute `identity.github.login` for LOGIN:
-- `is:pr author:LOGIN updated:>=<start>` — note merged vs open per result, and
-  review state where the payload carries it. Keep every PR's `html_url`: each one
-  is printed as a link, so it is a field you will print. Keep each merged PR's
-  `pull_request.merged_at`: that date, not `updated_at`, is the day it belongs to
-  in *Shipped*. A PR merged Friday and commented on today is Friday's.
-- `is:pr review-requested:LOGIN state:open` — awaiting OWNER's review.
-- `is:pr mentions:LOGIN updated:>=<start>` — review comments/mentions.
-- Reconcile against the local `git` commits: each PR appears once, and a local
-  commit with no PR still gets reported as a commit.
+Four searches, one per section they feed — **each is date-bounded or not on
+purpose, so do not merge them back into one.** Substitute
+`identity.github.login` for LOGIN:
+- `is:pr author:LOGIN merged:>=<start>` → *Shipped*. Bound by `merged:`, not
+  `updated:`: the merge date is the day the PR belongs to, and a PR merged Friday
+  and commented on today is Friday's.
+- `is:pr author:LOGIN state:open` → *In flight*. **Deliberately unbounded by
+  date.** An open PR nobody has touched since before the window is the single most
+  actionable thing the brief can carry — approved and waiting on a merge, or
+  blocked on a review — and any `updated:>=<start>` bound hides exactly those. The
+  stalest PR here is the most important one, so filtering by recency inverts the
+  section's whole purpose. Report the review state where the payload carries it.
+- `is:pr review-requested:LOGIN state:open` → *Tags*. Awaiting OWNER's review.
+- `is:pr mentions:LOGIN updated:>=<start>` → *Tags*. Review comments/mentions.
+
+Keep every PR's `html_url` — each is printed as a link, so it is a field you will
+print. The first two searches can return the same PR only if it merged inside the
+window, so **deduplicate by number** and let *Shipped* win. Reconcile against the
+local `git` commits too: each PR appears once, and a local commit with no PR still
+gets reported as a commit.
 
 **Jira** (`sources.jira`). Pass `fields="summary,status,updated"`, `limit=20`.
 Two searches, not three — one covers both worked-in-window and in-flight:
